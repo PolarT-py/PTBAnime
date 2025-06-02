@@ -14,6 +14,9 @@ class Application(Gtk.Application):
         win.set_default_size(600, 400)
         win.set_size_request(600, 400)
         win.set_resizable(True)
+        win.fullscreen()
+
+        
 
         # Box
         box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=12)
