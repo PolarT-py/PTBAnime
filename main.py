@@ -37,7 +37,7 @@ class Application(Gtk.Application):
 
         win.present()
 
-# Create and run the application
+# Run App
 app = Application()
 exit_status = app.run(sys.argv)
 sys.exit(exit_status)
