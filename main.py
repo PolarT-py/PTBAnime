@@ -54,7 +54,7 @@ class Application(Gtk.Application):
         win.set_titlebar(headerbar)
 
         win.present()
-        get_anime_info("Kotourasan")
+        get_anime_info("Kotourasan")  # Testing
 
 # Run App
 app = Application()
