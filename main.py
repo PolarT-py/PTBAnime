@@ -1,7 +1,9 @@
-import sys
 import gi
 gi.require_version('Gtk', '4.0')
-from gi.repository import Gtk, GLib
+from gi.repository import GLib
+from ui import *
+
+anime_folder = ""  # Temporary until the settings panel is made
 
 class Application(Gtk.Application):
     def __init__(self):
@@ -14,18 +16,24 @@ class Application(Gtk.Application):
         win.set_default_size(600, 400)
         win.set_size_request(600, 400)
         win.set_resizable(True)
-        win.fullscreen()
 
-        
+        # Header Bar
+        headerbar = Gtk.HeaderBar()
+        headerbar.set_title_widget(Gtk.Label(label="PTBAnime - Library"))
+        headerbar.pack_end(Gtk.MenuButton(icon_name="open-menu-symbolic"))
+        headerbar.pack_start(Gtk.MenuButton(icon_name="view-refresh"))
 
-        # Box
-        box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=12)
-        box.set_margin_top(20)
-        box.set_margin_bottom(20)
-        box.set_margin_start(20)
-        box.set_margin_end(20)
+        # Search Bar
+        search_bar = Gtk.SearchBar()
 
-        # Title
+        # Boxes
+        main_home_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=12)
+        main_home_box.set_margin_top(20)
+        main_home_box.set_margin_bottom(20)
+        main_home_box.set_margin_start(20)
+        main_home_box.set_margin_end(20)
+
+        # Description
         label = Gtk.Label(label="Welcome to PTBAnime!\nYour personal Anime player.")
         label.set_justify(Gtk.Justification.CENTER)
         label.set_hexpand(True)
@@ -33,12 +41,20 @@ class Application(Gtk.Application):
         label.set_halign(Gtk.Align.CENTER)
         label.set_valign(Gtk.Align.START)
 
-        box.append(label)
+        # Main Content Grid
+        content_grid = Gtk.GridView()
+
+        main_home_box.append(label)
+        main_home_box.append(search_bar)
+        main_home_box.append(content_grid)
 
         # Add Box
-        win.set_child(box)
+        win.set_child(main_home_box)
+
+        win.set_titlebar(headerbar)
 
         win.present()
+        get_anime_info("Kotourasan")
 
 # Run App
 app = Application()

@@ -1,2 +1,2 @@
 # PTBAnime
-PTBAnime is a cool personal anime tracker and watcher built in python using GTK4
+PTBAnime is a cool personal anime player built in python using GTK4
