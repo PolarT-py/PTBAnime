@@ -7,7 +7,7 @@ from gi.repository import Gtk, Gdk, Gio, Pango
 base_dir = os.path.dirname(os.path.abspath(__file__))
 with open(os.path.join(base_dir, "settings.json"), "r") as f:
     settings = json.load(f)
-    anime_dir = settings["anime_folder"]  # Where all your anime is stored
+anime_dir = settings.get("anime_folder", os.path.join(os.path.expanduser("~"), "Anime"))
 ptbanime_data_file = {
     "title": "Anime Title",          # Title
     "title-en": "Anime Title (en)",  # Title in english
