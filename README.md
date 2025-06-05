@@ -28,7 +28,8 @@ PTBAnime is a cool personal anime library manager and player built in Python usi
 
 - Python 3
 - GTK 4 (with Python bindings)
-- Gobject PyGObject PyGobject-stubs
+- GObject
+- PyGObject
 
 ### Setup
 You need to select the folder all your anime videos is in. 
@@ -53,4 +54,4 @@ your-anime-folder/            # Root anime folder (set in settings)
 
 ## ❗ Disclaimer
 
-PTBAnime is for personal use only. It does not stream or download anime from the internet. You must provide your own files. PTBAnime is developed **just** for fun. 
+PTBAnime is for personal use only. It does not stream or download anime from the internet. You must provide your own files. PTBAnime is developed **just** for fun, we will still look at bugs/feature requests, but it's not guaranteed we will implement them. 
