@@ -36,7 +36,7 @@ You need to select the folder all your anime videos is in.
 your-anime-folder/            # Root anime folder (set in settings)
 ├── Dragon Ball A/            # Each folder = one anime
 │   ├── cover.png             # Cover image, you need to add your own cover.png
-│   ├── PTBAnime-data.json    # Metadata (Auto-generated)
+│   ├── PTBAnime-data.json    # Metadata (Auto-generated), but change the values yourself
 │   ├── Episode 01.mp4        # Episodes, every video file will be interpreted as a episode
 │   ├── Episode 02.mp4        #
 │   └── ...
