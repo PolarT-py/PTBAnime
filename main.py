@@ -10,6 +10,7 @@ class Application(Gtk.Application):
         super().__init__(application_id="dev.polartblock.ptbanime")
         GLib.set_application_name("PTBAnime")
         self.query = ""
+        self.content_grid = Gtk.FlowBox()
         print("Initialized")
 
     def _load_css(self):
@@ -37,6 +38,22 @@ class Application(Gtk.Application):
             return True
         return self.query in child.get_child().title.lower()
 
+    def refresh_grid(self, very_useful_and_insanely_short_parameter_that_is_important=None, very_useful_parameter_two=None):
+        child = self.content_grid.get_first_child()
+        while child:  # Remove all children
+            next_child = child.get_next_sibling()
+            self.content_grid.remove(child)
+            child = next_child
+        for anime in sorted(fetch_anime_folder()): # Add new
+            anime_data, anime_cover_path = get_anime_info(anime)
+            title = anime_data["title"] if settings["title-language"] == "jp" else anime_data["title-en"]
+            fixed = Gtk.Fixed()
+            fixed.set_size_request(160, 220)
+            fixed.put(AnimeCard(title, anime_cover_path), 0, 0)
+            fixed.set_halign(Gtk.Align.CENTER)
+            # content_grid.append(fixed)
+            self.content_grid.append(AnimeCard(title, anime_cover_path))
+
     def do_activate(self):
         print("Activated")
         # Create Main Window
@@ -46,11 +63,21 @@ class Application(Gtk.Application):
         win.set_size_request(1280, 720)
         win.set_resizable(True)
 
-        # Header Bar
+        # Header Bar and its buttons
         headerbar = Gtk.HeaderBar()
         headerbar.set_title_widget(Gtk.Label(label="PTBAnime - Library"))
-        headerbar.pack_end(Gtk.MenuButton(icon_name="open-menu-symbolic"))
-        headerbar.pack_start(Gtk.MenuButton(icon_name="view-refresh"))
+        refresh_button = Gtk.Button(icon_name="view-refresh")
+        refresh_button.connect("clicked", self.refresh_grid)
+        headerbar.pack_start(refresh_button)
+        menu = Gio.Menu()
+        menu.append("Refresh Anime List", "app.refresh_anime_grid")
+        refresh_action = Gio.SimpleAction.new("refresh_anime_grid", None)
+        refresh_action.connect("activate", self.refresh_grid)
+        self.add_action(refresh_action)
+        menu.append("Change Anime Folder", "app.change_anime_folder")
+        menu_button = Gtk.MenuButton(icon_name="open-menu-symbolic")
+        menu_button.set_menu_model(menu)
+        headerbar.pack_end(menu_button)
 
         # Search Bar
         search_entry = Gtk.SearchEntry()
@@ -79,8 +106,7 @@ class Application(Gtk.Application):
         label.set_valign(Gtk.Align.START)
 
         # Main Content Grid
-        self.content_grid = Gtk.FlowBox()
-        self.content_grid.set_max_children_per_line(12)
+        self.content_grid.set_max_children_per_line(8)
         # content_grid.set_selection_mode(Gtk.SelectionMode.NONE)
         self.content_grid.set_activate_on_single_click(False)
         self.content_grid.set_valign(Gtk.Align.START)
@@ -88,19 +114,23 @@ class Application(Gtk.Application):
         self.content_grid.set_hexpand(False)
         self.content_grid.set_vexpand(True)
         self.content_grid.set_filter_func(self.filter_func)
-        for anime in fetch_anime_folder():
-            anime_data, anime_cover_path = get_anime_info(anime)
-            title = anime_data["title"] if settings["title-language"] == "jp" else anime_data["title-en"]
-            fixed = Gtk.Fixed()
-            fixed.set_size_request(160, 220)
-            fixed.put(AnimeCard(title, anime_cover_path), 0, 0)
-            fixed.set_halign(Gtk.Align.CENTER)
-            # content_grid.append(fixed)
-            self.content_grid.append(AnimeCard(title, anime_cover_path))
+        self.refresh_grid()
 
         main_home_box.append(search_entry)
         main_home_box.append(label)
         main_home_box.append(self.content_grid)
+
+        if settings["first-time"]:
+            print("First time!")
+            selected_folder = str(select_folder(win)) + "/"
+            print(selected_folder)
+            settings["anime_folder"] = selected_folder
+            settings["first-time"] = False
+            with open(settings_path, "w") as F:
+                print(settings)
+                # json.dump(settings, F, indent=4)
+                # update_anime_dir()
+                # Doesn't work as expected yet
 
         # Add Box
         win.set_child(main_home_box_scroll)

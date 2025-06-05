@@ -5,14 +5,16 @@ gi.require_version('Gtk', '4.0')
 from gi.repository import Gtk, Gdk, Gio, Pango
 
 base_dir = os.path.dirname(os.path.abspath(__file__))
-with open(os.path.join(base_dir, "settings.json"), "r") as f:
+settings_path = os.path.join(base_dir, "settings.json")
+with open(settings_path, "r") as f:
     settings = json.load(f)
 anime_dir = settings.get("anime_folder", os.path.join(os.path.expanduser("~"), "Anime"))
 ptbanime_data_file = {
     "title": "Anime Title",          # Title
     "title-en": "Anime Title (en)",  # Title in english
     "last-episode": 1,               # Last episode you watched
-    "last-episode-timestamp": 0      # Where you last left off
+    "last-episode-timestamp": 0,      # Where you last left off
+    "description": "Default description. You should edit the PTBAnime-info.json file in the folder of this anime to change the description, you can also change other stuff too, like the english and japanese titles. Changing the titles won't change your folder name. "
 }
 
 
@@ -48,7 +50,7 @@ class AnimeCard(Gtk.Box):  # Creates a card (Grid Item) for a Grid
         self.cover.set_valign(Gtk.Align.START)
         self.append(self.cover)
 
-        self.label.set_size_request(320, 40)
+        self.label.set_size_request(260, 40)
         self.label.set_valign(Gtk.Align.START)
         self.label.set_margin_top(-80)
         self.label.set_hexpand(False)
@@ -59,6 +61,7 @@ class AnimeCard(Gtk.Box):  # Creates a card (Grid Item) for a Grid
         self.label.set_wrap_mode(Pango.WrapMode.WORD)
         self.label.set_lines(2)
         self.label.set_ellipsize(Pango.EllipsizeMode.MIDDLE)
+        self.label.set_justify(Gtk.Justification.CENTER)
         self.append(self.label)
 
 def fetch_anime_folder():
@@ -84,6 +87,31 @@ def get_anime_info(select_anime_folder):  # Gets the anime info. Testing...
         with open(data_file_path, "r") as F:
             anime_data = json.load(F)
             print(anime_data)
+        # Check for missing keys, and fill them if not present
+        missing = False
+        if "title" not in anime_data:
+            missing = True
+            anime_data["title"] = ptbanime_data_file["title"]
+            print("Filled in missing title")
+        if "title-en" not in anime_data:
+            missing = True
+            anime_data["title-en"] = ptbanime_data_file["title-en"]
+            print("Filled in missing title-en")
+        if "last-episode" not in anime_data:
+            missing = True
+            anime_data["last-episode"] = ptbanime_data_file["last-episode"]
+            print("Filled in missing last-episode")
+        if "last-episode-timestamp" not in anime_data:
+            missing = True
+            anime_data["last-episode-timestamp"] = ptbanime_data_file["last-episode-timestamp"]
+            print("Filled in missing last-episode-timestamp")
+        if "description" not in anime_data:
+            missing = True
+            anime_data["description"] = ptbanime_data_file["description"]
+            print("Filled in missing description")
+        if missing:
+            with open(data_file_path, "w") as F:
+                json.dump(anime_data, F, indent=4)
     else:  # Data file doesn't exist. Create data file automatically
         print("Creating new PTBAnime data file...")
         anime_data = ptbanime_data_file.copy()
@@ -93,3 +121,28 @@ def get_anime_info(select_anime_folder):  # Gets the anime info. Testing...
             json.dump(anime_data, F, indent=4)
         print("Created new PTBAnime data file!")
     return anime_data, cover_image_path  # Return the anime data and cover image path
+
+def select_folder(window: Gtk.Window):
+    dialog = Gtk.FileChooserNative.new(
+        title="Select the folder where your Anime is",
+        parent=window,
+        action=Gtk.FileChooserAction.SELECT_FOLDER,
+        accept_label="Select",
+        cancel_label="Cancel"
+    )
+    def on_response(_dialog, response_id):
+        folder = None
+        if response_id == Gtk.ResponseType.ACCEPT:
+            folder = _dialog.get_file().get_path()
+            print("Selected folder:", folder)
+        else:
+            print("Cancelled")
+        _dialog.destroy()
+        return folder
+
+    dialog.connect("response", on_response)
+    dialog.show()
+
+def update_anime_dir():
+    global anime_dir
+    anime_dir = settings.get("anime_folder", os.path.join(os.path.expanduser("~"), "Anime"))
