@@ -7,14 +7,43 @@ from ui import *
 
 class Application(Gtk.Application):
     def __init__(self):
-        super().__init__(application_id="com.polartblock.ptbanime")
+        super().__init__(application_id="dev.polartblock.ptbanime")
         GLib.set_application_name("PTBAnime")
+        self.query = ""
+        print("Initialized")
+
+    def _load_css(self):
+        css = b"""
+        .grid-item {
+            border-radius: 21px;
+            background-clip: padding-box;
+            overflow: hidden;
+            /*background-color: #000;*/
+        }
+        .anicard-box {
+            /*background-color: green;*/
+        }
+        """
+        css_provider = Gtk.CssProvider()
+        css_provider.load_from_data(css)
+        Gtk.StyleContext.add_provider_for_display(Gdk.Display.get_default(), css_provider, Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION)
+
+    def on_search_changed(self, entry):
+        self.query = entry.get_text().lower()
+        self.content_grid.invalidate_filter()
+
+    def filter_func(self, child: Gtk.FlowBoxChild):
+        if self.query == "":
+            return True
+        return self.query in child.get_child().title.lower()
 
     def do_activate(self):
+        print("Activated")
         # Create Main Window
-        win = Gtk.ApplicationWindow(application=self, title="PTBAnime")
-        win.set_default_size(600, 400)
-        win.set_size_request(600, 400)
+        win = Gtk.ApplicationWindow(application=self)
+        win.set_title("PTBAnime")
+        win.set_default_size(1280, 720)
+        win.set_size_request(1280, 720)
         win.set_resizable(True)
 
         # Header Bar
@@ -24,51 +53,61 @@ class Application(Gtk.Application):
         headerbar.pack_start(Gtk.MenuButton(icon_name="view-refresh"))
 
         # Search Bar
-        search_bar = Gtk.SearchBar()
+        search_entry = Gtk.SearchEntry()
+        search_entry.set_placeholder_text("Search Anime...")
+        search_entry.connect("search-changed", self.on_search_changed)
+        search_entry.set_margin_start(100)
+        search_entry.set_margin_end(100)
+        search_entry.set_margin_top(10)
 
         # Boxes
         main_home_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=12)
-        main_home_box.set_margin_top(20)
+        main_home_box.set_margin_top(0)
         main_home_box.set_margin_bottom(20)
-        main_home_box.set_margin_start(20)
-        main_home_box.set_margin_end(20)
+        main_home_box.set_margin_start(0)
+        main_home_box.set_margin_end(0)
+        main_home_box_scroll = Gtk.ScrolledWindow()
+        main_home_box_scroll.set_policy(Gtk.PolicyType.NEVER, Gtk.PolicyType.ALWAYS)
+        main_home_box_scroll.set_child(main_home_box)
 
         # Description
         label = Gtk.Label(label="Welcome to PTBAnime!\nYour personal Anime player.")
         label.set_justify(Gtk.Justification.CENTER)
         label.set_hexpand(True)
-        label.set_vexpand(True)
+        label.set_vexpand(False)
         label.set_halign(Gtk.Align.CENTER)
         label.set_valign(Gtk.Align.START)
 
         # Main Content Grid
-        content_grid = Gtk.FlowBox()
-        content_grid.set_vexpand(True)
-        content_grid.set_halign(Gtk.Align.START)
+        self.content_grid = Gtk.FlowBox()
+        self.content_grid.set_max_children_per_line(12)
+        # content_grid.set_selection_mode(Gtk.SelectionMode.NONE)
+        self.content_grid.set_activate_on_single_click(False)
+        self.content_grid.set_valign(Gtk.Align.START)
+        self.content_grid.set_halign(Gtk.Align.CENTER)
+        self.content_grid.set_hexpand(False)
+        self.content_grid.set_vexpand(True)
+        self.content_grid.set_filter_func(self.filter_func)
         for anime in fetch_anime_folder():
             anime_data, anime_cover_path = get_anime_info(anime)
             title = anime_data["title"] if settings["title-language"] == "jp" else anime_data["title-en"]
             fixed = Gtk.Fixed()
-            fixed.set_size_request(320, 440)
+            fixed.set_size_request(160, 220)
             fixed.put(AnimeCard(title, anime_cover_path), 0, 0)
             fixed.set_halign(Gtk.Align.CENTER)
             # content_grid.append(fixed)
-            main_home_box.append(fixed)
-        content_grid_scroll = Gtk.ScrolledWindow()
-        content_grid_scroll.set_policy(Gtk.PolicyType.NEVER, Gtk.PolicyType.ALWAYS)
-        content_grid_scroll.set_child(content_grid)
+            self.content_grid.append(AnimeCard(title, anime_cover_path))
 
+        main_home_box.append(search_entry)
         main_home_box.append(label)
-        main_home_box.append(search_bar)
-        main_home_box.append(content_grid_scroll)
+        main_home_box.append(self.content_grid)
 
         # Add Box
-        win.set_child(main_home_box)
+        win.set_child(main_home_box_scroll)
 
         win.set_titlebar(headerbar)
 
-        get_anime_info("Kotourasan")  # Testing
-        fetch_anime_folder()
+        self._load_css()
         win.present()
 
 # Run App

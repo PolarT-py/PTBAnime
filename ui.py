@@ -16,34 +16,41 @@ ptbanime_data_file = {
 }
 
 
-class AnimeCard(Gtk.Box):  # Creates a card (Grid Item) for the Grid that shows all the anime
+class AnimeCard(Gtk.Box):  # Creates a card (Grid Item) for a Grid
     def __init__(self, title="Placeholder Title", image_path=None):
         super().__init__(orientation=Gtk.Orientation.VERTICAL, spacing=5)
         self.label = Gtk.Label(label=title)
+        self.title = title
 
         if image_path is None:
             image_path = os.path.join(base_dir, "assets", "anime_card_thumbnail.png")
         cover_texture = Gdk.Texture.new_from_file(Gio.File.new_for_path(image_path))
 
         self.set_size_request(320, 440)
-        # self.set_hexpand(False)
-        # self.set_vexpand(False)
+        self.set_spacing(0)
+        self.set_hexpand(False)
+        self.set_vexpand(False)
         self.set_halign(Gtk.Align.CENTER)
         self.set_valign(Gtk.Align.CENTER)
-        self.set_margin_start(30)
-        self.set_margin_end(30)
-        self.set_margin_top(30)
-        self.set_margin_bottom(30)
-        self.set_css_classes(["max-box"])
-        self.cover = Gtk.Picture.new_for_paintable(cover_texture)
+        self.set_margin_start(10)
+        self.set_margin_end(10)
+        # self.set_margin_top(30)
+        # self.set_margin_bottom(30)
+        self.set_css_classes(["anicard-box"])
+
+        self.cover = Gtk.Image.new_from_paintable(cover_texture)
+        # self.cover.set_content_fit(Gtk.ContentFit.COVER)
         self.cover.set_size_request(320, 400)
-        self.cover.set_content_fit(Gtk.ContentFit.COVER)
         self.cover.set_css_classes(["grid-item"])
         self.cover.set_hexpand(False)
         self.cover.set_vexpand(False)
         self.cover.set_halign(Gtk.Align.CENTER)
-        self.cover.set_valign(Gtk.Align.FILL)
-        # self.cover.set_content_fit(Gtk.ContentFit.SCALE_DOWN)
+        self.cover.set_valign(Gtk.Align.START)
+        self.append(self.cover)
+
+        self.label.set_size_request(320, 40)
+        self.label.set_valign(Gtk.Align.START)
+        self.label.set_margin_top(-80)
         self.label.set_hexpand(False)
         self.label.set_vexpand(True)
         self.label.set_halign(Gtk.Align.CENTER)
@@ -52,24 +59,7 @@ class AnimeCard(Gtk.Box):  # Creates a card (Grid Item) for the Grid that shows 
         self.label.set_wrap_mode(Pango.WrapMode.WORD)
         self.label.set_lines(2)
         self.label.set_ellipsize(Pango.EllipsizeMode.MIDDLE)
-
-        self.append(self.cover)
         self.append(self.label)
-        self._load_css()
-    def _load_css(self):
-        css = b"""
-        .grid-item {
-            border-radius: 21px;
-            background-clip: padding-box;
-            overflow: hidden;
-        }
-        .max-box {
-            background-color: green;
-        }
-        """
-        css_provider = Gtk.CssProvider()
-        css_provider.load_from_data(css)
-        Gtk.StyleContext.add_provider_for_display(Gdk.Display.get_default(), css_provider, Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION)
 
 def fetch_anime_folder():
     found_anime = [name for name in os.listdir(anime_dir) if os.path.isdir(os.path.join(anime_dir, name))]
