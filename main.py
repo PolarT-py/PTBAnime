@@ -126,8 +126,8 @@ class Application(Gtk.Application):
             print(selected_folder)
             settings["anime_folder"] = selected_folder
             settings["first-time"] = False
-            with open(settings_path, "w") as F:
-                print(settings)
+            # with open(settings_path, "w") as F:
+            #     print(settings)
                 # json.dump(settings, F, indent=4)
                 # update_anime_dir()
                 # Doesn't work as expected yet
