@@ -122,7 +122,7 @@ def get_anime_info(select_anime_folder):  # Gets the anime info. Testing...
         print("Created new PTBAnime data file!")
     return anime_data, cover_image_path  # Return the anime data and cover image path
 
-def select_folder(window: Gtk.Window):
+def select_folder(window: Gtk.Window, on_folder_selected: callable):
     dialog = Gtk.FileChooserNative.new(
         title="Select the folder where your Anime is",
         parent=window,
@@ -130,6 +130,7 @@ def select_folder(window: Gtk.Window):
         accept_label="Select",
         cancel_label="Cancel"
     )
+
     def on_response(_dialog, response_id):
         folder = None
         if response_id == Gtk.ResponseType.ACCEPT:
@@ -138,11 +139,23 @@ def select_folder(window: Gtk.Window):
         else:
             print("Cancelled")
         _dialog.destroy()
-        return folder
+        on_folder_selected(folder)  # Call back
 
     dialog.connect("response", on_response)
     dialog.show()
 
+
 def update_anime_dir():
     global anime_dir
     anime_dir = settings.get("anime_folder", os.path.join(os.path.expanduser("~"), "Anime"))
+
+def check_settings():  # Fix settings options if empty
+    if "anime_folder" not in settings or settings["anime_folder"] == "":
+        settings["anime_folder"] = os.path.expanduser("~")
+    if "title-language" not in settings or settings["title-language"] == "":
+        settings["title-language"] = "en"
+    if "first-time" not in settings or settings["first-time"] == "":
+        settings["first-time"] = True
+    with open(settings_path, "w") as F:
+        json.dump(settings, F, indent=4)
+    update_anime_dir()

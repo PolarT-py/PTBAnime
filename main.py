@@ -8,6 +8,7 @@ from ui import *
 class Application(Gtk.Application):
     def __init__(self):
         super().__init__(application_id="dev.polartblock.ptbanime")
+        check_settings()
         GLib.set_application_name("PTBAnime")
         self.query = ""
         self.content_grid = Gtk.FlowBox()
@@ -54,14 +55,32 @@ class Application(Gtk.Application):
             # content_grid.append(fixed)
             self.content_grid.append(AnimeCard(title, anime_cover_path))
 
+    def choose_anime_folder(self, a=None, b=None):
+        def handle_selected_folder(selected_folder):
+            if selected_folder is None:
+                print("No anime folder selected")
+                return
+            else:
+                settings["anime_folder"] = selected_folder
+            settings["first-time"] = False
+            print("Selected folder", selected_folder)
+            print("Settings anime folder", settings["anime_folder"])
+            with open(settings_path, "w") as F:
+                json.dump(settings, F, indent=4)
+
+            update_anime_dir()
+            self.refresh_grid()
+
+        select_folder(self.win, handle_selected_folder)
+
     def do_activate(self):
         print("Activated")
         # Create Main Window
-        win = Gtk.ApplicationWindow(application=self)
-        win.set_title("PTBAnime")
-        win.set_default_size(1280, 720)
-        win.set_size_request(1280, 720)
-        win.set_resizable(True)
+        self.win = Gtk.ApplicationWindow(application=self)
+        self.win.set_title("PTBAnime")
+        self.win.set_default_size(1280, 720)
+        self.win.set_size_request(1280, 720)
+        self.win.set_resizable(True)
 
         # Header Bar and its buttons
         headerbar = Gtk.HeaderBar()
@@ -74,7 +93,10 @@ class Application(Gtk.Application):
         refresh_action = Gio.SimpleAction.new("refresh_anime_grid", None)
         refresh_action.connect("activate", self.refresh_grid)
         self.add_action(refresh_action)
-        menu.append("Change Anime Folder", "app.change_anime_folder")
+        menu.append("Change Anime Folder", "app.change-anime-folder")
+        change_anime_folder_action = Gio.SimpleAction.new("change-anime-folder", None)
+        change_anime_folder_action.connect("activate", self.choose_anime_folder)
+        self.add_action(change_anime_folder_action)
         menu_button = Gtk.MenuButton(icon_name="open-menu-symbolic")
         menu_button.set_menu_model(menu)
         headerbar.pack_end(menu_button)
@@ -122,23 +144,15 @@ class Application(Gtk.Application):
 
         if settings["first-time"]:
             print("First time!")
-            selected_folder = str(select_folder(win)) + "/"
-            print(selected_folder)
-            settings["anime_folder"] = selected_folder
-            settings["first-time"] = False
-            # with open(settings_path, "w") as F:
-            #     print(settings)
-                # json.dump(settings, F, indent=4)
-                # update_anime_dir()
-                # Doesn't work as expected yet
+            self.choose_anime_folder()
 
         # Add Box
-        win.set_child(main_home_box_scroll)
+        self.win.set_child(main_home_box_scroll)
 
-        win.set_titlebar(headerbar)
+        self.win.set_titlebar(headerbar)
 
         self._load_css()
-        win.present()
+        self.win.present()
 
 # Run App
 if __name__ == "__main__":
