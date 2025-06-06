@@ -19,11 +19,17 @@ class Application(Gtk.Application):
         .grid-item {
             border-radius: 21px;
             background-clip: padding-box;
-            overflow: hidden;
-            /*background-color: #000;*/
         }
         .anicard-box {
             /*background-color: green;*/
+            font-size: 14px;
+        }
+        #image-rounding {
+            border-radius: 20px;
+            background-color: green;
+            margin: 0px;
+            padding: 0px;
+            border: 2px solid red;
         }
         """
         css_provider = Gtk.CssProvider()
@@ -78,8 +84,8 @@ class Application(Gtk.Application):
         # Create Main Window
         self.win = Gtk.ApplicationWindow(application=self)
         self.win.set_title("PTBAnime")
-        self.win.set_default_size(1280, 720)
-        self.win.set_size_request(1280, 720)
+        self.win.set_size_request(1200, 800)
+        self.win.set_default_size(1200, 800)
         self.win.set_resizable(True)
 
         # Header Bar and its buttons
@@ -159,4 +165,3 @@ if __name__ == "__main__":
     app = Application()
     exit_status = app.run(sys.argv)
     sys.exit(exit_status)
-# I can't get this to launch

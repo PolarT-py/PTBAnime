@@ -2,7 +2,7 @@ import os
 import json
 import gi
 gi.require_version('Gtk', '4.0')
-from gi.repository import Gtk, Gdk, Gio, Pango
+from gi.repository import Gtk, Gdk, Gio, Pango, GdkPixbuf
 
 base_dir = os.path.dirname(os.path.abspath(__file__))
 settings_path = os.path.join(base_dir, "settings.json")
@@ -13,7 +13,7 @@ ptbanime_data_file = {
     "title": "Anime Title",          # Title
     "title-en": "Anime Title (en)",  # Title in english
     "last-episode": 1,               # Last episode you watched
-    "last-episode-timestamp": 0,      # Where you last left off
+    "last-episode-timestamp": 0,     # Where you last left off
     "description": "Default description. You should edit the PTBAnime-info.json file in the folder of this anime to change the description, you can also change other stuff too, like the english and japanese titles. Changing the titles won't change your folder name. "
 }
 
@@ -23,12 +23,14 @@ class AnimeCard(Gtk.Box):  # Creates a card (Grid Item) for a Grid
         super().__init__(orientation=Gtk.Orientation.VERTICAL, spacing=5)
         self.label = Gtk.Label(label=title)
         self.title = title
+        self.size = (280, 400)
 
         if image_path is None:
             image_path = os.path.join(base_dir, "assets", "anime_card_thumbnail.png")
-        cover_texture = Gdk.Texture.new_from_file(Gio.File.new_for_path(image_path))
+        bad_cover_texture = GdkPixbuf.Pixbuf.new_from_file(image_path)
+        cover_texture = bad_cover_texture.scale_simple(self.size[0], self.size[1], GdkPixbuf.InterpType.BILINEAR)
 
-        self.set_size_request(320, 440)
+        self.set_size_request(self.size[0], self.size[1])
         self.set_spacing(0)
         self.set_hexpand(False)
         self.set_vexpand(False)
@@ -36,13 +38,13 @@ class AnimeCard(Gtk.Box):  # Creates a card (Grid Item) for a Grid
         self.set_valign(Gtk.Align.CENTER)
         self.set_margin_start(10)
         self.set_margin_end(10)
-        # self.set_margin_top(30)
-        # self.set_margin_bottom(30)
+        self.set_margin_top(30)
+        self.set_margin_bottom(30)
         self.set_css_classes(["anicard-box"])
 
-        self.cover = Gtk.Image.new_from_paintable(cover_texture)
-        # self.cover.set_content_fit(Gtk.ContentFit.COVER)
-        self.cover.set_size_request(320, 400)
+        self.cover = Gtk.Picture.new_for_pixbuf(cover_texture)
+        self.cover.set_content_fit(Gtk.ContentFit.FILL)
+        self.cover.set_size_request(self.size[0], self.size[1])
         self.cover.set_css_classes(["grid-item"])
         self.cover.set_hexpand(False)
         self.cover.set_vexpand(False)
@@ -50,9 +52,8 @@ class AnimeCard(Gtk.Box):  # Creates a card (Grid Item) for a Grid
         self.cover.set_valign(Gtk.Align.START)
         self.append(self.cover)
 
-        self.label.set_size_request(260, 40)
+        self.label.set_size_request(self.size[0] - 20, 40)
         self.label.set_valign(Gtk.Align.START)
-        self.label.set_margin_top(-80)
         self.label.set_hexpand(False)
         self.label.set_vexpand(True)
         self.label.set_halign(Gtk.Align.CENTER)
