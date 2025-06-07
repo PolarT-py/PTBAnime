@@ -1,7 +1,7 @@
 import sys
 import gi
 gi.require_version('Gtk', '4.0')
-from gi.repository import Gtk, Gdk, GLib
+from gi.repository import Gio, GLib  # Other stuff imported from ui
 from ui import *
 
 
@@ -12,29 +12,9 @@ class Application(Gtk.Application):
         GLib.set_application_name("PTBAnime")
         self.query = ""
         self.content_grid = Gtk.FlowBox()
+        self.stack = Gtk.Stack()
+        self.win = Gtk.ApplicationWindow()
         print("Initialized")
-
-    def _load_css(self):
-        css = b"""
-        .grid-item {
-            border-radius: 21px;
-            background-clip: padding-box;
-        }
-        .anicard-box {
-            /*background-color: green;*/
-            font-size: 14px;
-        }
-        #image-rounding {
-            border-radius: 20px;
-            background-color: green;
-            margin: 0px;
-            padding: 0px;
-            border: 2px solid red;
-        }
-        """
-        css_provider = Gtk.CssProvider()
-        css_provider.load_from_data(css)
-        Gtk.StyleContext.add_provider_for_display(Gdk.Display.get_default(), css_provider, Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION)
 
     def on_search_changed(self, entry):
         self.query = entry.get_text().lower()
@@ -53,13 +33,7 @@ class Application(Gtk.Application):
             child = next_child
         for anime in sorted(fetch_anime_folder()): # Add new
             anime_data, anime_cover_path = get_anime_info(anime)
-            title = anime_data["title"] if settings["title-language"] == "jp" else anime_data["title-en"]
-            fixed = Gtk.Fixed()
-            fixed.set_size_request(160, 220)
-            fixed.put(AnimeCard(title, anime_cover_path), 0, 0)
-            fixed.set_halign(Gtk.Align.CENTER)
-            # content_grid.append(fixed)
-            self.content_grid.append(AnimeCard(title, anime_cover_path))
+            self.content_grid.append(AnimeCard(anime_data, anime_cover_path))
 
     def choose_anime_folder(self, a=None, b=None):
         def handle_selected_folder(selected_folder):
@@ -79,6 +53,30 @@ class Application(Gtk.Application):
 
         select_folder(self.win, handle_selected_folder)
 
+    def go_to_library(self, filler_lol=None):
+        self.stack.set_visible_child_name("Library")
+
+    def go_to_episodes(self, filler_lol_2=None):
+        self.stack.set_visible_child_name("Episodes")
+
+    def on_anime_flowbox_child_activate(self, flowbox, child):
+        print("Going to Anime:", child.get_child().title)
+        self.update_episodes(child.get_child().info, child.get_child().image_path)
+        self.go_to_episodes()
+
+    def update_episodes(self, anime_data=ptbanime_data_file, cover_path=None):
+        # Update HeaderBar
+        self.headerbar_episodes.set_title_widget(Gtk.Label.new("PTBAnime - " + (anime_data["title"] if settings["title-language"] == "jp" else anime_data["title-en"])))
+        # Update Cover
+        if cover_path is None:
+            bad_cover_picture_episodes = GdkPixbuf.Pixbuf.new_from_file(os.path.join(base_dir, "assets", "anime_card_thumbnail.png"))
+        else:
+            bad_cover_picture_episodes = GdkPixbuf.Pixbuf.new_from_file(cover_path)
+        cover_picture_episodes_texture = bad_cover_picture_episodes.scale_simple(280, 400, GdkPixbuf.InterpType.BILINEAR)
+        self.cover_picture_episodes.set_pixbuf(cover_picture_episodes_texture)
+        self.title_episodes.set_label(anime_data["title"] if settings["title-language"] == "jp" else anime_data["title-en"])
+        self.description_episodes.set_label(anime_data["description"])
+
     def do_activate(self):
         print("Activated")
         # Create Main Window
@@ -88,9 +86,32 @@ class Application(Gtk.Application):
         self.win.set_default_size(1200, 800)
         self.win.set_resizable(True)
 
-        # Header Bar and its buttons
+        # Stack (For switching between pages)
+        self.stack.set_transition_type(Gtk.StackTransitionType.SLIDE_LEFT_RIGHT)
+        self.stack.set_transition_duration(300)
+
+        # Load pages
+        self.load_library()
+        self.load_episode_selection()
+
+        # Check first time
+        if settings["first-time"]:
+            print("First time!")
+            self.choose_anime_folder()
+
+        # Set the Library to visible on launch
+        self.stack.set_visible_child_name("Library")
+
+        # Add Stack to window
+        self.win.set_child(self.stack)
+
+        load_css()
+        self.win.present()
+
+    def load_library(self):
+        # Header Bar
         headerbar = Gtk.HeaderBar()
-        headerbar.set_title_widget(Gtk.Label(label="PTBAnime - Library"))
+        headerbar.set_title_widget(Gtk.Label(label="PTBAnime - Episodes"))
         refresh_button = Gtk.Button(icon_name="view-refresh")
         refresh_button.connect("clicked", self.refresh_grid)
         headerbar.pack_start(refresh_button)
@@ -115,7 +136,8 @@ class Application(Gtk.Application):
         search_entry.set_margin_end(100)
         search_entry.set_margin_top(10)
 
-        # Boxes
+        # Main Home Box (Library)
+        main_home_box_outer = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=0)
         main_home_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=12)
         main_home_box.set_margin_top(0)
         main_home_box.set_margin_bottom(20)
@@ -142,23 +164,106 @@ class Application(Gtk.Application):
         self.content_grid.set_hexpand(False)
         self.content_grid.set_vexpand(True)
         self.content_grid.set_filter_func(self.filter_func)
+        self.content_grid.connect("child-activated", self.on_anime_flowbox_child_activate)
         self.refresh_grid()
 
+        main_home_box_outer.append(headerbar)
+        main_home_box_outer.append(main_home_box_scroll)
         main_home_box.append(search_entry)
         main_home_box.append(label)
         main_home_box.append(self.content_grid)
+        self.stack.add_named(main_home_box_outer, "Library")
 
-        if settings["first-time"]:
-            print("First time!")
-            self.choose_anime_folder()
+    def load_episode_selection(self):
+        # Crappiest code yet! Confuzzling names and horrible variable management awaiting ahead.
+        # WARNING: Read at your own risk! (We need code beautification update)
+        # Main Episodes box
+        self.main_episodes_box_outer = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=0)
+        self.main_episodes_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=40)
+        self.main_episodes_box_scroll = Gtk.ScrolledWindow()
+        self.main_episodes_box_scroll.set_policy(Gtk.PolicyType.NEVER, Gtk.PolicyType.ALWAYS)
+        self.main_episodes_box_scroll.set_child(self.main_episodes_box)
+        self.main_episodes_box_scroll.set_vexpand(True)
 
-        # Add Box
-        self.win.set_child(main_home_box_scroll)
+        # Header Bar
+        self.headerbar_episodes = Gtk.HeaderBar()
+        self.headerbar_episodes.set_title_widget(Gtk.Label(label="PTBAnime - Episodes"))
+        back_button = Gtk.Button(icon_name="go-previous-symbolic")
+        back_button.connect("clicked", self.go_to_library)
+        self.headerbar_episodes.pack_start(back_button)
+        menu = Gio.Menu()
+        menu_button = Gtk.MenuButton(icon_name="open-menu-symbolic")
+        menu_button.set_menu_model(menu)
+        self.headerbar_episodes.pack_end(menu_button)
 
-        self.win.set_titlebar(headerbar)
 
-        self._load_css()
-        self.win.present()
+        ## Cover + Anime Info
+        self.cover_plus_info_box = Gtk.Box.new(orientation=Gtk.Orientation.HORIZONTAL, spacing=40)
+        self.cover_plus_info_box.set_vexpand(False)
+        self.cover_plus_info_box.set_margin_top(40)
+        self.cover_plus_info_box.set_margin_bottom(40)
+        self.cover_plus_info_box.set_margin_start(40)
+        self.cover_plus_info_box.set_margin_end(40)
+        self.cover_box_episodes = Gtk.Box.new(orientation=Gtk.Orientation.VERTICAL, spacing=40)
+        self.cover_box_episodes.set_vexpand(False)
+        self.cover_box_episodes.set_hexpand(False)
+        self.info_box_episodes = Gtk.Box.new(orientation=Gtk.Orientation.VERTICAL, spacing=40)
+        self.info_box_episodes.set_vexpand(True)
+        self.info_box_episodes.set_name("info_box_episodes")
+        self.info_buttons_box_episodes = Gtk.Box.new(orientation=Gtk.Orientation.HORIZONTAL, spacing=10)
+        self.info_buttons_box_episodes.set_vexpand(True)
+        self.info_buttons_box_episodes.set_valign(Gtk.Align.END)
+        self.info_buttons_box_episodes.set_name("info_buttons_box_episodes")
+
+        # Add the stuff to the stuff
+        self.cover_plus_info_box.append(self.cover_box_episodes)
+        self.cover_plus_info_box.append(self.info_box_episodes)
+
+        # Make and add more stuff to the stuff's stuff
+        bad_cover_picture_episodes = GdkPixbuf.Pixbuf.new_from_file(os.path.join(base_dir, "assets", "anime_card_thumbnail.png"))
+        cover_picture_episodes_texture = bad_cover_picture_episodes.scale_simple(280, 400, GdkPixbuf.InterpType.BILINEAR)
+        self.cover_picture_episodes = Gtk.Picture.new_for_pixbuf(cover_picture_episodes_texture)
+        self.cover_picture_episodes.set_name("episodes_cover")
+
+        self.title_episodes = Gtk.Label.new(ptbanime_data_file["title"] if settings["title-language"] == "jp" else ptbanime_data_file["title-en"])
+        self.title_episodes.set_name("episodes_title")
+        self.title_episodes.set_wrap(True)
+        self.title_episodes.set_xalign(0)
+        self.description_episodes = Gtk.Label.new(ptbanime_data_file["description"])
+        self.description_episodes.set_name("episodes_description")
+        self.description_episodes.set_wrap(True)
+        self.description_episodes.set_xalign(0)
+
+        self.info_buttons_star_episodes = Gtk.Button.new()
+        self.info_buttons_star_episodes.set_child(Gtk.Image.new_from_icon_name("emblem-favorite-symbolic"))
+        self.info_buttons_edit_episodes = Gtk.Button.new()
+        self.info_buttons_edit_episodes.set_child(Gtk.Image.new_from_icon_name("document-edit-symbolic"))
+
+        self.cover_box_episodes.append(self.cover_picture_episodes)
+        self.info_buttons_box_episodes.append(self.info_buttons_star_episodes)
+        self.info_buttons_box_episodes.append(self.info_buttons_edit_episodes)
+        self.info_box_episodes.append(self.title_episodes)
+        self.info_box_episodes.append(self.description_episodes)
+        self.info_box_episodes.append(self.info_buttons_box_episodes)
+        self.cover_box_episodes.append(self.cover_box_episodes)
+
+
+        ## Episodes selection
+        self.episodes_episodes_box = Gtk.Box.new(orientation=Gtk.Orientation.VERTICAL, spacing=0)
+        self.episode_selection_grid = Gtk.FlowBox.new()
+
+        self.episodes_episodes_box.append(self.episode_selection_grid)
+
+
+        # Add the things to main box and outer box
+        self.main_episodes_box.append(self.cover_plus_info_box)
+        self.main_episodes_box.append(self.episodes_episodes_box)
+        self.main_episodes_box_outer.append(self.headerbar_episodes)
+        self.main_episodes_box_outer.append(self.main_episodes_box_scroll)
+
+        self.stack.add_named(self.main_episodes_box_outer, "Episodes")
+        self.update_episodes()  # Set everything to default PTBAnime-data
+
 
 # Run App
 if __name__ == "__main__":

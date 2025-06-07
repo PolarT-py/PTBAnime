@@ -32,7 +32,7 @@ PTBAnime is a cool personal anime library manager and player built in Python usi
 - PyGObject
 
 ### Setup
-You need to select the folder all your anime videos is in. 
+You will need to do a lot of manual work to make everything look pretty, you need to select the folder all your anime videos is in, which is the easy part. You also then have to edit PTBAnime-info files to add a Title and Description, and also a cover image, in the form of a png/jpg. 
 <pre>
 your-anime-folder/            # Root anime folder (set in settings)
 ├── Dragon Ball A/            # Each folder = one anime

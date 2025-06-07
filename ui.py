@@ -1,15 +1,17 @@
-import os
 import json
+import os
+
 import gi
+
 gi.require_version('Gtk', '4.0')
-from gi.repository import Gtk, Gdk, Gio, Pango, GdkPixbuf
+from gi.repository import Gtk, Gdk, Pango, GdkPixbuf
 
 base_dir = os.path.dirname(os.path.abspath(__file__))
 settings_path = os.path.join(base_dir, "settings.json")
 with open(settings_path, "r") as f:
     settings = json.load(f)
 anime_dir = settings.get("anime_folder", os.path.join(os.path.expanduser("~"), "Anime"))
-ptbanime_data_file = {
+ptbanime_data_file = {  # Default data file
     "title": "Anime Title",          # Title
     "title-en": "Anime Title (en)",  # Title in english
     "last-episode": 1,               # Last episode you watched
@@ -19,14 +21,20 @@ ptbanime_data_file = {
 
 
 class AnimeCard(Gtk.Box):  # Creates a card (Grid Item) for a Grid
-    def __init__(self, title="Placeholder Title", image_path=None):
+    def __init__(self, info=None, image_path=None):
         super().__init__(orientation=Gtk.Orientation.VERTICAL, spacing=5)
-        self.label = Gtk.Label(label=title)
-        self.title = title
-        self.size = (280, 400)
+        if info is None:  # Really hope this doesn't happen
+            self.info = ptbanime_data_file
+        else:  # Yes
+            self.info = info
 
-        if image_path is None:
-            image_path = os.path.join(base_dir, "assets", "anime_card_thumbnail.png")
+        self.title = self.info["title"] if settings["title-language"] == "jp" else self.info["title-en"]
+        self.label = Gtk.Label(label=self.title)
+        self.size = (280, 400)
+        self.image_path = image_path
+
+        if self.image_path is None:
+            self.image_path = os.path.join(base_dir, "assets", "anime_card_thumbnail.png")
         bad_cover_texture = GdkPixbuf.Pixbuf.new_from_file(image_path)
         cover_texture = bad_cover_texture.scale_simple(self.size[0], self.size[1], GdkPixbuf.InterpType.BILINEAR)
 
@@ -63,6 +71,7 @@ class AnimeCard(Gtk.Box):  # Creates a card (Grid Item) for a Grid
         self.label.set_lines(2)
         self.label.set_ellipsize(Pango.EllipsizeMode.MIDDLE)
         self.label.set_justify(Gtk.Justification.CENTER)
+        self.label.set_css_classes(["anicard-label"])
         self.append(self.label)
 
 def fetch_anime_folder():
@@ -160,3 +169,46 @@ def check_settings():  # Fix settings options if empty
     with open(settings_path, "w") as F:
         json.dump(settings, F, indent=4)
     update_anime_dir()
+
+def load_css():
+    css = b"""
+    .grid-item {
+        border-radius: 21px;
+        background-clip: padding-box;
+    }
+    .anicard-box {
+        /*background-color: green;*/
+    }
+    #image-rounding {
+        border-radius: 20px;
+        /*background-color: green;*/
+        margin: 0px;
+        padding: 0px;
+        border: 2px solid red;
+    }
+    .anicard-label {
+        font-size: 14px;
+        /*background-color: black;*/
+    }
+    
+    #info_buttons_box_episodes {
+        /*background-color: purple;*/
+    }
+    #info_box_episodes {
+        /*background-color: red;*/
+    }
+    #episodes_title {
+        font-size: 48px;
+    }
+    #episodes_description {
+        font-size: 14px;
+    }
+    #episodes_cover {
+        border-radius: 21px;
+        min-width: 280px;
+        min-height: 400px;
+    }
+    """
+    css_provider = Gtk.CssProvider()
+    css_provider.load_from_data(css)
+    Gtk.StyleContext.add_provider_for_display(Gdk.Display.get_default(), css_provider, Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION)
