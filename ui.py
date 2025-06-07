@@ -1,8 +1,10 @@
 import json
 import os
-
+import ffmpeg
+import sys
+print(ffmpeg.__file__)
+print(sys.path)
 import gi
-
 gi.require_version('Gtk', '4.0')
 from gi.repository import Gtk, Gdk, Pango, GdkPixbuf
 
@@ -20,6 +22,55 @@ ptbanime_data_file = {  # Default data file
 }
 
 
+class EpisodeCard(Gtk.Box):
+    def __init__(self, info=None, anime_path=None, episode=0, video_path=None):
+        super().__init__(orientation=Gtk.Orientation.VERTICAL, spacing=5)
+        if info is None:
+            self.info = ptbanime_data_file
+        else:
+            self.info = info
+        self.anime_path = anime_path
+        self.episode = episode
+        self.video_path = video_path
+
+        self.size = (160, 90)
+        self.set_size_request(self.size[0], self.size[1])
+        self.set_margin_top(0)
+        self.set_margin_bottom(10)
+        self.set_margin_start(10)
+        self.set_margin_end(10)
+        self.label = Gtk.Label.new("Episode " + str(episode))
+        self.label.set_valign(Gtk.Align.START)
+        self.label.set_hexpand(False)
+        self.label.set_vexpand(True)
+        self.label.set_halign(Gtk.Align.START)
+        self.label.set_valign(Gtk.Align.FILL)
+        self.label.set_wrap(True)
+        self.label.set_wrap_mode(Pango.WrapMode.WORD)
+        self.label.set_lines(2)
+        self.label.set_ellipsize(Pango.EllipsizeMode.MIDDLE)
+        self.label.set_justify(Gtk.Justification.CENTER)
+        self.label.set_css_classes(["epicard_label"])
+
+        if self.video_path is None:
+            self.cover_path = os.path.join(base_dir, "assets", "anime_card_thumbnail.png")
+        else:
+            self.cover_path = extract_video_thumbnail(video_path)
+        bad_cover_texture = GdkPixbuf.Pixbuf.new_from_file(self.cover_path)
+        cover_texture = Gdk.Texture.new_for_pixbuf(bad_cover_texture.scale_simple(self.size[0], self.size[1], GdkPixbuf.InterpType.BILINEAR))
+        self.cover = Gtk.Picture.new_for_paintable(cover_texture)
+        self.cover.set_content_fit(Gtk.ContentFit.FILL)
+        self.cover.set_size_request(self.size[0], self.size[1])
+        self.cover.set_css_classes(["episode_item"])
+        self.cover.set_hexpand(False)
+        self.cover.set_vexpand(False)
+        self.cover.set_halign(Gtk.Align.CENTER)
+        self.cover.set_valign(Gtk.Align.START)
+        self.append(self.cover)
+
+        self.append(self.cover)
+        self.append(self.label)
+
 class AnimeCard(Gtk.Box):  # Creates a card (Grid Item) for a Grid
     def __init__(self, info=None, image_path=None):
         super().__init__(orientation=Gtk.Orientation.VERTICAL, spacing=5)
@@ -32,11 +83,12 @@ class AnimeCard(Gtk.Box):  # Creates a card (Grid Item) for a Grid
         self.label = Gtk.Label(label=self.title)
         self.size = (280, 400)
         self.image_path = image_path
+        self.anime_path = os.path.dirname(image_path)
 
         if self.image_path is None:
             self.image_path = os.path.join(base_dir, "assets", "anime_card_thumbnail.png")
         bad_cover_texture = GdkPixbuf.Pixbuf.new_from_file(image_path)
-        cover_texture = bad_cover_texture.scale_simple(self.size[0], self.size[1], GdkPixbuf.InterpType.BILINEAR)
+        cover_texture = Gdk.Texture.new_for_pixbuf(bad_cover_texture.scale_simple(self.size[0], self.size[1], GdkPixbuf.InterpType.BILINEAR))
 
         self.set_size_request(self.size[0], self.size[1])
         self.set_spacing(0)
@@ -50,7 +102,7 @@ class AnimeCard(Gtk.Box):  # Creates a card (Grid Item) for a Grid
         self.set_margin_bottom(30)
         self.set_css_classes(["anicard-box"])
 
-        self.cover = Gtk.Picture.new_for_pixbuf(cover_texture)
+        self.cover = Gtk.Picture.new_for_paintable(cover_texture)
         self.cover.set_content_fit(Gtk.ContentFit.FILL)
         self.cover.set_size_request(self.size[0], self.size[1])
         self.cover.set_css_classes(["grid-item"])
@@ -74,9 +126,16 @@ class AnimeCard(Gtk.Box):  # Creates a card (Grid Item) for a Grid
         self.label.set_css_classes(["anicard-label"])
         self.append(self.label)
 
+def fetch_episodes(anime_path):  # Takes full anime path
+    if anime_path is None:
+        return None
+    found_episodes = [name for name in os.listdir(anime_path) if name.endswith(".mp4") and os.path.isfile(os.path.join(anime_path, name))]
+    print(f"Found Episodes for {anime_path}:", found_episodes)
+    return found_episodes
+
 def fetch_anime_folder():
     found_anime = [name for name in os.listdir(anime_dir) if os.path.isdir(os.path.join(anime_dir, name))]
-    print(found_anime)
+    print("Found Anime:", found_anime)
     return found_anime
 
 def get_anime_info(select_anime_folder):  # Gets the anime info. Testing...
@@ -132,6 +191,34 @@ def get_anime_info(select_anime_folder):  # Gets the anime info. Testing...
         print("Created new PTBAnime data file!")
     return anime_data, cover_image_path  # Return the anime data and cover image path
 
+def extract_video_thumbnail(video_path):
+    # Create cache stuff
+    cache_dir = os.path.join(os.path.dirname(video_path), ".cache")
+    os.makedirs(cache_dir, exist_ok=True)
+    output_path = os.path.join(os.path.dirname(video_path), ".cache", os.path.basename(video_path) + ".jpg")
+    # Check if a cache file exists already
+    if os.path.exists(output_path):
+        return output_path
+    # Get Video Duration
+    print("VIDEO PATH:", video_path)
+    try:
+        probe = ffmpeg.probe(video_path)
+    except ffmpeg._run.Error as e:
+        print("ffprobe error message:")
+        print(e.stderr.decode())
+    duration = float(probe["format"]["duration"])
+    midpoint = duration / 2
+
+    # Extract middle frame
+    (
+        ffmpeg
+        .input(video_path, ss=midpoint)
+        .filter("scale", 160, 90)
+        .output(output_path, vframes=1, qscale=5)
+        .run(quiet=True, overwrite_output=True)
+    )
+    return output_path
+
 def select_folder(window: Gtk.Window, on_folder_selected: callable):
     dialog = Gtk.FileChooserNative.new(
         title="Select the folder where your Anime is",
@@ -153,7 +240,6 @@ def select_folder(window: Gtk.Window, on_folder_selected: callable):
 
     dialog.connect("response", on_response)
     dialog.show()
-
 
 def update_anime_dir():
     global anime_dir
@@ -191,6 +277,9 @@ def load_css():
         /*background-color: black;*/
     }
     
+    #cover_plus_info_box {
+        /*background-color: lime;*/
+    }
     #info_buttons_box_episodes {
         /*background-color: purple;*/
     }
@@ -207,6 +296,16 @@ def load_css():
         border-radius: 21px;
         min-width: 280px;
         min-height: 400px;
+    }
+    #episode_selection_label {
+        font-size: 38px;
+    }
+    .episode_item {
+        border-radius: 4px;
+    }
+    .epicard_label {
+        font-size: 15px;
+        /*background-color: pink;*/
     }
     """
     css_provider = Gtk.CssProvider()

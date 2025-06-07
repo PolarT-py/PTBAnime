@@ -1,4 +1,5 @@
-import sys
+import subprocess
+import shutil
 import gi
 gi.require_version('Gtk', '4.0')
 from gi.repository import Gio, GLib  # Other stuff imported from ui
@@ -14,6 +15,7 @@ class Application(Gtk.Application):
         self.content_grid = Gtk.FlowBox()
         self.stack = Gtk.Stack()
         self.win = Gtk.ApplicationWindow()
+        self.current_anime = None
         print("Initialized")
 
     def on_search_changed(self, entry):
@@ -25,15 +27,32 @@ class Application(Gtk.Application):
             return True
         return self.query in child.get_child().title.lower()
 
-    def refresh_grid(self, very_useful_and_insanely_short_parameter_that_is_important=None, very_useful_parameter_two=None):
+    def refresh_grid(self, idk=None, idkchild=None):
         child = self.content_grid.get_first_child()
         while child:  # Remove all children
             next_child = child.get_next_sibling()
             self.content_grid.remove(child)
             child = next_child
-        for anime in sorted(fetch_anime_folder()): # Add new
+        for anime in sorted(fetch_anime_folder()): # Re-add found anime
             anime_data, anime_cover_path = get_anime_info(anime)
             self.content_grid.append(AnimeCard(anime_data, anime_cover_path))
+
+    def refresh_episodes_grid(self, nu=None, idkchild=None):
+        child = self.episode_selection_grid.get_first_child()
+        while child:  # Remove all children
+            next_child = child.get_next_sibling()
+            self.episode_selection_grid.remove(child)
+            child = next_child
+        episode_n = 1
+        fetched_episodes = fetch_episodes(self.current_anime)
+        if fetched_episodes is None or len(fetched_episodes) == 0:
+            print("Episodes do not exist")
+            return
+        # fetched_episodes = sorted(fetched_episodes)  # Never sort :)
+        for episode in fetched_episodes: # Re-Add found episodes
+            anime_data = os.path.join(self.current_anime, "PTBAnime-info.json")
+            self.episode_selection_grid.append(EpisodeCard(anime_data, self.current_anime, episode_n, os.path.join(self.current_anime, episode)))
+            episode_n += 1
 
     def choose_anime_folder(self, a=None, b=None):
         def handle_selected_folder(selected_folder):
@@ -59,10 +78,33 @@ class Application(Gtk.Application):
     def go_to_episodes(self, filler_lol_2=None):
         self.stack.set_visible_child_name("Episodes")
 
-    def on_anime_flowbox_child_activate(self, flowbox, child):
+    def on_anime_flowbox_child_activate(self, flowbox_u_wont_need_cuz_global, child):
         print("Going to Anime:", child.get_child().title)
         self.update_episodes(child.get_child().info, child.get_child().image_path)
+        self.current_anime = child.get_child().anime_path
+        self.refresh_episodes_grid()
         self.go_to_episodes()
+
+    def generate_all_cache(self, p1=None, p2=None):
+        print("Generating all cache...")
+        dialog = Gtk.MessageDialog(transient_for=self.win, message_type=Gtk.MessageType.INFO, text="Generating Cache... This might take a while")
+        dialog.show()
+        for anime in fetch_anime_folder():
+            for episode in fetch_episodes(os.path.join(anime_dir, anime)):
+                extract_video_thumbnail(os.path.join(anime_dir, anime, episode))  # Extracting the thumbnail
+        print("Generated all cache!")
+        dialog.destroy()
+
+    def clear_all_cache(self, p1=None, p2=None):
+        print("Clearing all cache...")
+        dialog = Gtk.MessageDialog(transient_for=self.win, message_type=Gtk.MessageType.INFO, text="Clearing Cache... This might take a while")
+        dialog.show()
+        for anime in fetch_anime_folder():
+            cache_folder = os.path.join(anime_dir, anime, ".cache")
+            if os.path.exists(cache_folder) and os.path.isdir(cache_folder):  # Check if the .cache folder exists
+                shutil.rmtree(cache_folder)   # Then remove all cache
+        print("Removed all cache!")
+        dialog.destroy()
 
     def update_episodes(self, anime_data=ptbanime_data_file, cover_path=None):
         # Update HeaderBar
@@ -72,10 +114,16 @@ class Application(Gtk.Application):
             bad_cover_picture_episodes = GdkPixbuf.Pixbuf.new_from_file(os.path.join(base_dir, "assets", "anime_card_thumbnail.png"))
         else:
             bad_cover_picture_episodes = GdkPixbuf.Pixbuf.new_from_file(cover_path)
-        cover_picture_episodes_texture = bad_cover_picture_episodes.scale_simple(280, 400, GdkPixbuf.InterpType.BILINEAR)
-        self.cover_picture_episodes.set_pixbuf(cover_picture_episodes_texture)
+        cover_picture_episodes_texture = Gdk.Texture.new_for_pixbuf(bad_cover_picture_episodes.scale_simple(280, 400, GdkPixbuf.InterpType.BILINEAR))
+        self.cover_picture_episodes.set_paintable(cover_picture_episodes_texture)
         self.title_episodes.set_label(anime_data["title"] if settings["title-language"] == "jp" else anime_data["title-en"])
         self.description_episodes.set_label(anime_data["description"])
+        # Grid is updated in on_anime_flowbox_child_activate
+
+    def on_episode_selected(self, e1=None, child=None):
+        video_path = os.path.basename(child.get_child().video_path)  # Not full path
+        print("Watching", self.current_anime, video_path)
+        subprocess.Popen(["mpv", os.path.join(anime_dir, self.current_anime, video_path)])  # Just for testing
 
     def do_activate(self):
         print("Activated")
@@ -116,14 +164,27 @@ class Application(Gtk.Application):
         refresh_button.connect("clicked", self.refresh_grid)
         headerbar.pack_start(refresh_button)
         menu = Gio.Menu()
+
         menu.append("Refresh Anime List", "app.refresh_anime_grid")
         refresh_action = Gio.SimpleAction.new("refresh_anime_grid", None)
         refresh_action.connect("activate", self.refresh_grid)
         self.add_action(refresh_action)
+
         menu.append("Change Anime Folder", "app.change-anime-folder")
         change_anime_folder_action = Gio.SimpleAction.new("change-anime-folder", None)
         change_anime_folder_action.connect("activate", self.choose_anime_folder)
         self.add_action(change_anime_folder_action)
+
+        menu.append("Generate All Cache", "app.refresh_anime_grid")
+        generate_all_cache_menu_button = Gio.SimpleAction.new("refresh_anime_grid", None)
+        generate_all_cache_menu_button.connect("activate", self.generate_all_cache)
+        self.add_action(generate_all_cache_menu_button)
+
+        menu.append("Clear All Cache", "app.clear-all-cache")
+        clear_all_cache_menu_button = Gio.SimpleAction.new("clear-all-cache", None)
+        clear_all_cache_menu_button.connect("activate", self.clear_all_cache)
+        self.add_action(clear_all_cache_menu_button)
+
         menu_button = Gtk.MenuButton(icon_name="open-menu-symbolic")
         menu_button.set_menu_model(menu)
         headerbar.pack_end(menu_button)
@@ -158,7 +219,7 @@ class Application(Gtk.Application):
         # Main Content Grid
         self.content_grid.set_max_children_per_line(8)
         # content_grid.set_selection_mode(Gtk.SelectionMode.NONE)
-        self.content_grid.set_activate_on_single_click(False)
+        self.content_grid.set_activate_on_single_click(True)
         self.content_grid.set_valign(Gtk.Align.START)
         self.content_grid.set_halign(Gtk.Align.CENTER)
         self.content_grid.set_hexpand(False)
@@ -201,9 +262,10 @@ class Application(Gtk.Application):
         self.cover_plus_info_box = Gtk.Box.new(orientation=Gtk.Orientation.HORIZONTAL, spacing=40)
         self.cover_plus_info_box.set_vexpand(False)
         self.cover_plus_info_box.set_margin_top(40)
-        self.cover_plus_info_box.set_margin_bottom(40)
+        self.cover_plus_info_box.set_margin_bottom(0)
         self.cover_plus_info_box.set_margin_start(40)
         self.cover_plus_info_box.set_margin_end(40)
+        self.cover_plus_info_box.set_name("cover_plus_info_box")
         self.cover_box_episodes = Gtk.Box.new(orientation=Gtk.Orientation.VERTICAL, spacing=40)
         self.cover_box_episodes.set_vexpand(False)
         self.cover_box_episodes.set_hexpand(False)
@@ -221,18 +283,20 @@ class Application(Gtk.Application):
 
         # Make and add more stuff to the stuff's stuff
         bad_cover_picture_episodes = GdkPixbuf.Pixbuf.new_from_file(os.path.join(base_dir, "assets", "anime_card_thumbnail.png"))
-        cover_picture_episodes_texture = bad_cover_picture_episodes.scale_simple(280, 400, GdkPixbuf.InterpType.BILINEAR)
-        self.cover_picture_episodes = Gtk.Picture.new_for_pixbuf(cover_picture_episodes_texture)
+        cover_picture_episodes_texture = Gdk.Texture.new_for_pixbuf(bad_cover_picture_episodes.scale_simple(280, 400, GdkPixbuf.InterpType.BILINEAR))
+        self.cover_picture_episodes = Gtk.Picture.new_for_paintable(cover_picture_episodes_texture)
         self.cover_picture_episodes.set_name("episodes_cover")
 
         self.title_episodes = Gtk.Label.new(ptbanime_data_file["title"] if settings["title-language"] == "jp" else ptbanime_data_file["title-en"])
         self.title_episodes.set_name("episodes_title")
         self.title_episodes.set_wrap(True)
         self.title_episodes.set_xalign(0)
+        self.title_episodes.set_margin_bottom(0)
         self.description_episodes = Gtk.Label.new(ptbanime_data_file["description"])
         self.description_episodes.set_name("episodes_description")
         self.description_episodes.set_wrap(True)
         self.description_episodes.set_xalign(0)
+        self.description_episodes.set_margin_top(0)
 
         self.info_buttons_star_episodes = Gtk.Button.new()
         self.info_buttons_star_episodes.set_child(Gtk.Image.new_from_icon_name("emblem-favorite-symbolic"))
@@ -249,9 +313,28 @@ class Application(Gtk.Application):
 
 
         ## Episodes selection
-        self.episodes_episodes_box = Gtk.Box.new(orientation=Gtk.Orientation.VERTICAL, spacing=0)
-        self.episode_selection_grid = Gtk.FlowBox.new()
+        self.episodes_episodes_box = Gtk.Box.new(orientation=Gtk.Orientation.VERTICAL, spacing=20)
+        self.episodes_episodes_box.set_margin_start(40)
+        self.episodes_episodes_box.set_margin_end(40)
+        self.episodes_episodes_box.set_margin_top(0)
+        self.episodes_episodes_box.set_margin_bottom(100)
+        self.episode_selection_label = Gtk.Label.new("Episodes")
+        self.episode_selection_label.set_name("episode_selection_label")
+        self.episode_selection_label.set_xalign(0)
 
+        # Episode Selection Grid
+        self.episode_selection_grid = Gtk.FlowBox.new()
+        self.episode_selection_grid.set_max_children_per_line(12)
+        self.episode_selection_grid.set_activate_on_single_click(True)
+        self.episode_selection_grid.set_valign(Gtk.Align.START)
+        self.episode_selection_grid.set_halign(Gtk.Align.START)
+        self.episode_selection_grid.set_hexpand(False)
+        self.episode_selection_grid.set_vexpand(True)
+        self.episode_selection_grid.connect("child-activated", self.on_episode_selected)
+        self.refresh_episodes_grid()
+
+
+        self.episodes_episodes_box.append(self.episode_selection_label)
         self.episodes_episodes_box.append(self.episode_selection_grid)
 
 
