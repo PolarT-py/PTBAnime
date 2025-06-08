@@ -403,7 +403,7 @@ class Application(Gtk.Application):
         menu_button = Gtk.MenuButton(icon_name="open-menu-symbolic")
         menu_button.set_menu_model(menu)
         self.headerbar_video.pack_end(menu_button)
-        self.headerbar_video.set_css_classes(["fade_hover"])
+        self.headerbar_video.set_name("headerbar_video")
         self.headerbar_video.set_opacity(0)
 
         main_overlay.add_overlay(self.headerbar_video)

@@ -85,7 +85,7 @@ class AnimeCard(Gtk.Box):  # Creates a card (Grid Item) for a Grid
         if self.image_path is None:
             self.image_path = os.path.join(base_dir, "assets", "anime_card_thumbnail.png")
         else:  # If there's an image path go here
-            cover_cache_path = str(os.path.join(self.anime_path, ".cache", os.path.basename(image_path)))
+            cover_cache_path = str(os.path.join(anime_dir, self.anime_path, ".cache", os.path.basename(image_path)))
             if os.path.exists(cover_cache_path):  # Use cached file if can
                 cover_texture = Gdk.Texture.new_from_filename(cover_cache_path)
             else:  # Generate cache
@@ -324,7 +324,7 @@ def load_css():
         /*background-color: pink;*/
     }
     
-    .fade_hover {
+    #headerbar_video {
         transition: opacity 300ms ease;
     }
     """
