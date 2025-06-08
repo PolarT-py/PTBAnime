@@ -33,7 +33,7 @@ class Application(Gtk.Application):
                 return
             for anime in sorted(fetch_anime_folder()): # Re-add found anime
                 anime_data, anime_cover_path = get_anime_info(anime)
-                self.content_grid.append(AnimeCard(anime_data, anime_cover_path))
+                self.content_grid.append(AnimeCard(anime_data, anime_cover_path, os.path.join(anime_dir, anime)))
         threading.Thread(target=do, daemon=True).start()
 
     def refresh_episodes_grid(self, nu=None, idkchild=None):
@@ -141,10 +141,20 @@ class Application(Gtk.Application):
         self.description_episodes.set_label(anime_data["description"])
         # Grid is updated in on_anime_flowbox_child_activate
 
+    def update_video(self):
+        pass
+
     def on_episode_selected(self, e1=None, child=None):
         video_path = os.path.basename(child.get_child().video_path)  # Not full path
         print("Watching", self.current_anime, video_path)
-        subprocess.Popen(["mpv", os.path.join(anime_dir, self.current_anime, video_path)])  # Just for testing
+        self.stack.set_visible_child_name("Video")
+        # subprocess.Popen(["mpv", os.path.join(anime_dir, self.current_anime, video_path)])  # Just for testing
+
+    def on_m_enter_bar(self, controller, x, y):
+        self.headerbar_video.set_opacity(1)
+
+    def on_m_leave_bar(self, controller):
+        self.headerbar_video.set_opacity(0)
 
     def do_activate(self):
         print("Activated")
@@ -162,6 +172,8 @@ class Application(Gtk.Application):
         # Load pages
         self.load_library()
         self.load_episode_selection()
+        self.load_info_editor()
+        self.load_video_player()
 
         # Check first time
         if settings["first-time"]:
@@ -372,7 +384,31 @@ class Application(Gtk.Application):
         pass
 
     def load_video_player(self):
-        pass
+        # Main Box and Overlay
+        main_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=0)
+        main_overlay = Gtk.Overlay()
+        overlay_motion = Gtk.EventControllerMotion.new()
+        overlay_motion.connect("enter", self.on_m_enter_bar)
+        overlay_motion.connect("leave", self.on_m_leave_bar)
+        main_overlay.add_controller(overlay_motion)
+
+
+        # Header Bar
+        self.headerbar_video = Gtk.HeaderBar()
+        self.headerbar_video.set_title_widget(Gtk.Label(label="PTBAnime - Episodes"))
+        back_button = Gtk.Button(icon_name="go-previous-symbolic")
+        back_button.connect("clicked", self.go_to_episodes)
+        self.headerbar_video.pack_start(back_button)
+        menu = Gio.Menu()
+        menu_button = Gtk.MenuButton(icon_name="open-menu-symbolic")
+        menu_button.set_menu_model(menu)
+        self.headerbar_video.pack_end(menu_button)
+        self.headerbar_video.set_css_classes(["fade_hover"])
+        self.headerbar_video.set_opacity(0)
+
+        main_overlay.add_overlay(self.headerbar_video)
+        main_box.append(main_overlay)
+        self.stack.add_named(main_box, "Video")
 
 # Run App
 if __name__ == "__main__":

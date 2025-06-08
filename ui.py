@@ -1,4 +1,4 @@
-import re, json, ffmpeg, vlc
+import re, json, ffmpeg
 import os, sys, subprocess, threading, shutil, time
 from concurrent.futures import ThreadPoolExecutor
 import gi
@@ -69,7 +69,7 @@ class EpisodeCard(Gtk.Box):
         self.append(self.label)
 
 class AnimeCard(Gtk.Box):  # Creates a card (Grid Item) for a Grid
-    def __init__(self, info=None, image_path=None):
+    def __init__(self, info=None, image_path=None, anime_path=None):
         super().__init__(orientation=Gtk.Orientation.VERTICAL, spacing=5)
         if info is None:  # Really hope this doesn't happen
             self.info = ptbanime_data_file
@@ -80,19 +80,19 @@ class AnimeCard(Gtk.Box):  # Creates a card (Grid Item) for a Grid
         self.label = Gtk.Label(label=self.title)
         self.size = (280, 400)
         self.image_path = image_path
+        self.anime_path = anime_path
 
         if self.image_path is None:
             self.image_path = os.path.join(base_dir, "assets", "anime_card_thumbnail.png")
-
-        self.anime_path = os.path.dirname(self.image_path)
-        cover_cache_path = str(os.path.join(self.anime_path, ".cache", os.path.basename(image_path)))
-        if os.path.exists(cover_cache_path):  # Use cached file if can
-            cover_texture = Gdk.Texture.new_from_filename(cover_cache_path)
-        else:  # Generate cache
-            bad_cover_pixbuf = GdkPixbuf.Pixbuf.new_from_file(self.image_path)
-            scaled_cover_pixbuf = bad_cover_pixbuf.scale_simple(self.size[0], self.size[1], GdkPixbuf.InterpType.BILINEAR)
-            cover_texture = Gdk.Texture.new_for_pixbuf(scaled_cover_pixbuf)
-            scaled_cover_pixbuf.savev(cover_cache_path, "png", [], [])
+        else:  # If there's an image path go here
+            cover_cache_path = str(os.path.join(self.anime_path, ".cache", os.path.basename(image_path)))
+            if os.path.exists(cover_cache_path):  # Use cached file if can
+                cover_texture = Gdk.Texture.new_from_filename(cover_cache_path)
+            else:  # Generate cache
+                bad_cover_pixbuf = GdkPixbuf.Pixbuf.new_from_file(self.image_path)
+                scaled_cover_pixbuf = bad_cover_pixbuf.scale_simple(self.size[0], self.size[1], GdkPixbuf.InterpType.BILINEAR)
+                cover_texture = Gdk.Texture.new_for_pixbuf(scaled_cover_pixbuf)
+                scaled_cover_pixbuf.savev(cover_cache_path, "png", [], [])
 
         self.set_size_request(self.size[0], self.size[1])
         self.set_spacing(0)
@@ -322,6 +322,10 @@ def load_css():
     .epicard_label {
         font-size: 15px;
         /*background-color: pink;*/
+    }
+    
+    .fade_hover {
+        transition: opacity 300ms ease;
     }
     """
     css_provider = Gtk.CssProvider()
