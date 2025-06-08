@@ -1,8 +1,3 @@
-import subprocess
-import shutil
-import gi
-gi.require_version('Gtk', '4.0')
-from gi.repository import Gio, GLib  # Other stuff imported from ui
 from ui import *
 
 
@@ -28,31 +23,37 @@ class Application(Gtk.Application):
         return self.query in child.get_child().title.lower()
 
     def refresh_grid(self, idk=None, idkchild=None):
-        child = self.content_grid.get_first_child()
-        while child:  # Remove all children
-            next_child = child.get_next_sibling()
-            self.content_grid.remove(child)
-            child = next_child
-        for anime in sorted(fetch_anime_folder()): # Re-add found anime
-            anime_data, anime_cover_path = get_anime_info(anime)
-            self.content_grid.append(AnimeCard(anime_data, anime_cover_path))
+        def do():
+            child = self.content_grid.get_first_child()
+            while child:  # Remove all children
+                next_child = child.get_next_sibling()
+                self.content_grid.remove(child)
+                child = next_child
+            if anime_dir_is_home_dir():  # Skips home dir
+                return
+            for anime in sorted(fetch_anime_folder()): # Re-add found anime
+                anime_data, anime_cover_path = get_anime_info(anime)
+                self.content_grid.append(AnimeCard(anime_data, anime_cover_path))
+        threading.Thread(target=do, daemon=True).start()
 
     def refresh_episodes_grid(self, nu=None, idkchild=None):
-        child = self.episode_selection_grid.get_first_child()
-        while child:  # Remove all children
-            next_child = child.get_next_sibling()
-            self.episode_selection_grid.remove(child)
-            child = next_child
-        episode_n = 1
-        fetched_episodes = fetch_episodes(self.current_anime)
-        if fetched_episodes is None or len(fetched_episodes) == 0:
-            print("Episodes do not exist")
-            return
-        # fetched_episodes = sorted(fetched_episodes)  # Never sort :)
-        for episode in fetched_episodes: # Re-Add found episodes
-            anime_data = os.path.join(self.current_anime, "PTBAnime-info.json")
-            self.episode_selection_grid.append(EpisodeCard(anime_data, self.current_anime, episode_n, os.path.join(self.current_anime, episode)))
-            episode_n += 1
+        def do():
+            child = self.episode_selection_grid.get_first_child()
+            while child:  # Remove all children
+                next_child = child.get_next_sibling()
+                self.episode_selection_grid.remove(child)
+                child = next_child
+            episode_n = 1
+            fetched_episodes = fetch_episodes(self.current_anime)
+            if fetched_episodes is None or len(fetched_episodes) == 0:
+                print("Episodes do not exist")
+                return
+            # fetched_episodes = sorted(fetched_episodes)  # Never sort :)
+            for episode in fetched_episodes: # Re-Add found episodes
+                anime_data = os.path.join(self.current_anime, "PTBAnime-info.json")
+                self.episode_selection_grid.append(EpisodeCard(anime_data, self.current_anime, episode_n, os.path.join(self.current_anime, episode)))
+                episode_n += 1
+        threading.Thread(target=do, daemon=True).start()
 
     def choose_anime_folder(self, a=None, b=None):
         def handle_selected_folder(selected_folder):
@@ -86,25 +87,40 @@ class Application(Gtk.Application):
         self.go_to_episodes()
 
     def generate_all_cache(self, p1=None, p2=None):
-        print("Generating all cache...")
-        dialog = Gtk.MessageDialog(transient_for=self.win, message_type=Gtk.MessageType.INFO, text="Generating Cache... This might take a while")
-        dialog.show()
-        for anime in fetch_anime_folder():
-            for episode in fetch_episodes(os.path.join(anime_dir, anime)):
-                extract_video_thumbnail(os.path.join(anime_dir, anime, episode))  # Extracting the thumbnail
-        print("Generated all cache!")
-        dialog.destroy()
+        def do():
+            time_start = time.time()
+            print("Generating all cache...")
+            dialog = Gtk.MessageDialog(transient_for=self.win, message_type=Gtk.MessageType.INFO, text="Generating Cache... This might take a while", secondary_text="Do something else and come back")
+            dialog.show()
+            fetched_anime_folders = fetch_anime_folder()
+            if len(fetched_anime_folders) > 0:
+                with ThreadPoolExecutor(max_workers=4) as pool:
+                    for anime in fetched_anime_folders:
+                        for episode in fetch_episodes(os.path.join(anime_dir, anime)):
+                            pool.submit(extract_video_thumbnail, os.path.join(anime_dir, anime, episode))  # Extracting the thumbnail
+            print("Generated all cache!")
+            dialog.destroy()
+            time_end = time.time()
+            total_time = time_end - time_start
+            dialog = Gtk.MessageDialog(transient_for=self.win, message_type=Gtk.MessageType.INFO,
+                                       text="Finished generating cache!",
+                                       secondary_text=f"Took {total_time} seconds", buttons=Gtk.ButtonsType.OK)
+            dialog.connect("response", lambda d, r: d.destroy())
+            dialog.show()
+        threading.Thread(target=do, daemon=True).start()
 
     def clear_all_cache(self, p1=None, p2=None):
-        print("Clearing all cache...")
-        dialog = Gtk.MessageDialog(transient_for=self.win, message_type=Gtk.MessageType.INFO, text="Clearing Cache... This might take a while")
-        dialog.show()
-        for anime in fetch_anime_folder():
-            cache_folder = os.path.join(anime_dir, anime, ".cache")
-            if os.path.exists(cache_folder) and os.path.isdir(cache_folder):  # Check if the .cache folder exists
-                shutil.rmtree(cache_folder)   # Then remove all cache
-        print("Removed all cache!")
-        dialog.destroy()
+        def do():
+            print("Clearing all cache...")
+            dialog = Gtk.MessageDialog(transient_for=self.win, message_type=Gtk.MessageType.INFO, text="Clearing Cache... This might take a while")
+            dialog.show()
+            for anime in fetch_anime_folder():
+                cache_folder = os.path.join(anime_dir, anime, ".cache")
+                if os.path.exists(cache_folder) and os.path.isdir(cache_folder):  # Check if the .cache folder exists
+                    shutil.rmtree(cache_folder)   # Then remove all cache
+            print("Removed all cache!")
+            dialog.destroy()
+        threading.Thread(target=do, daemon=True).start()
 
     def update_episodes(self, anime_data=ptbanime_data_file, cover_path=None):
         # Update HeaderBar
@@ -325,7 +341,7 @@ class Application(Gtk.Application):
         # Episode Selection Grid
         self.episode_selection_grid = Gtk.FlowBox.new()
         self.episode_selection_grid.set_max_children_per_line(12)
-        self.episode_selection_grid.set_activate_on_single_click(True)
+        self.episode_selection_grid.set_activate_on_single_click(False)
         self.episode_selection_grid.set_valign(Gtk.Align.START)
         self.episode_selection_grid.set_halign(Gtk.Align.START)
         self.episode_selection_grid.set_hexpand(False)
@@ -347,6 +363,11 @@ class Application(Gtk.Application):
         self.stack.add_named(self.main_episodes_box_outer, "Episodes")
         self.update_episodes()  # Set everything to default PTBAnime-data
 
+    def load_info_editor(self):
+        pass
+
+    def load_video_player(self):
+        pass
 
 # Run App
 if __name__ == "__main__":

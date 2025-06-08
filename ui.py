@@ -1,12 +1,9 @@
-import json
-import os
-import ffmpeg
-import sys
-print(ffmpeg.__file__)
-print(sys.path)
+import json, ffmpeg, vlc
+import os, sys, subprocess, threading, shutil, time
+from concurrent.futures import ThreadPoolExecutor
 import gi
 gi.require_version('Gtk', '4.0')
-from gi.repository import Gtk, Gdk, Pango, GdkPixbuf
+from gi.repository import Gtk, Gdk, Pango, GdkPixbuf, Gio, GLib
 
 base_dir = os.path.dirname(os.path.abspath(__file__))
 settings_path = os.path.join(base_dir, "settings.json")
@@ -83,12 +80,12 @@ class AnimeCard(Gtk.Box):  # Creates a card (Grid Item) for a Grid
         self.label = Gtk.Label(label=self.title)
         self.size = (280, 400)
         self.image_path = image_path
-        self.anime_path = os.path.dirname(image_path)
 
         if self.image_path is None:
             self.image_path = os.path.join(base_dir, "assets", "anime_card_thumbnail.png")
-        bad_cover_texture = GdkPixbuf.Pixbuf.new_from_file(image_path)
+        bad_cover_texture = GdkPixbuf.Pixbuf.new_from_file(self.image_path)
         cover_texture = Gdk.Texture.new_for_pixbuf(bad_cover_texture.scale_simple(self.size[0], self.size[1], GdkPixbuf.InterpType.BILINEAR))
+        self.anime_path = os.path.dirname(self.image_path)
 
         self.set_size_request(self.size[0], self.size[1])
         self.set_spacing(0)
@@ -138,7 +135,9 @@ def fetch_anime_folder():
     print("Found Anime:", found_anime)
     return found_anime
 
-def get_anime_info(select_anime_folder):  # Gets the anime info. Testing...
+def get_anime_info(select_anime_folder):  # Gets the anime info.
+    if anime_dir_is_home_dir():
+        return ptbanime_data_file, None
     # select_anime_folder is the anime folder name
     full_select_anime_folder = os.path.join(anime_dir, select_anime_folder)  # Full anime folder path
     print(full_select_anime_folder)
@@ -191,16 +190,19 @@ def get_anime_info(select_anime_folder):  # Gets the anime info. Testing...
         print("Created new PTBAnime data file!")
     return anime_data, cover_image_path  # Return the anime data and cover image path
 
+def anime_dir_is_home_dir():  # Checks if anime folder is the home directory
+    return settings["anime_folder"] == os.path.expanduser("~")
+
 def extract_video_thumbnail(video_path):
     # Create cache stuff
     cache_dir = os.path.join(os.path.dirname(video_path), ".cache")
     os.makedirs(cache_dir, exist_ok=True)
     output_path = os.path.join(os.path.dirname(video_path), ".cache", os.path.basename(video_path) + ".jpg")
-    # Check if a cache file exists already
+    # Check if the cache file exists already
     if os.path.exists(output_path):
         return output_path
     # Get Video Duration
-    print("VIDEO PATH:", video_path)
+    print("Generating thumbnail cache for:", video_path)
     try:
         probe = ffmpeg.probe(video_path)
     except ffmpeg._run.Error as e:
@@ -233,8 +235,12 @@ def select_folder(window: Gtk.Window, on_folder_selected: callable):
         if response_id == Gtk.ResponseType.ACCEPT:
             folder = _dialog.get_file().get_path()
             print("Selected folder:", folder)
+            if settings["first-time"]:  # Clear first time
+                settings["first-time"] = False
+                with open(settings_path, "w") as F:
+                    json.dump(settings, F, indent=4)
         else:
-            print("Cancelled")
+            print("Cancelled selecting folder")
         _dialog.destroy()
         on_folder_selected(folder)  # Call back
 
