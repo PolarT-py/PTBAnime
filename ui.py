@@ -1,4 +1,4 @@
-import json, ffmpeg, vlc
+import re, json, ffmpeg, vlc
 import os, sys, subprocess, threading, shutil, time
 from concurrent.futures import ThreadPoolExecutor
 import gi
@@ -83,9 +83,16 @@ class AnimeCard(Gtk.Box):  # Creates a card (Grid Item) for a Grid
 
         if self.image_path is None:
             self.image_path = os.path.join(base_dir, "assets", "anime_card_thumbnail.png")
-        bad_cover_texture = GdkPixbuf.Pixbuf.new_from_file(self.image_path)
-        cover_texture = Gdk.Texture.new_for_pixbuf(bad_cover_texture.scale_simple(self.size[0], self.size[1], GdkPixbuf.InterpType.BILINEAR))
+
         self.anime_path = os.path.dirname(self.image_path)
+        cover_cache_path = str(os.path.join(self.anime_path, ".cache", os.path.basename(image_path)))
+        if os.path.exists(cover_cache_path):  # Use cached file if can
+            cover_texture = Gdk.Texture.new_from_filename(cover_cache_path)
+        else:  # Generate cache
+            bad_cover_pixbuf = GdkPixbuf.Pixbuf.new_from_file(self.image_path)
+            scaled_cover_pixbuf = bad_cover_pixbuf.scale_simple(self.size[0], self.size[1], GdkPixbuf.InterpType.BILINEAR)
+            cover_texture = Gdk.Texture.new_for_pixbuf(scaled_cover_pixbuf)
+            scaled_cover_pixbuf.savev(cover_cache_path, "png", [], [])
 
         self.set_size_request(self.size[0], self.size[1])
         self.set_spacing(0)
@@ -261,6 +268,9 @@ def check_settings():  # Fix settings options if empty
     with open(settings_path, "w") as F:
         json.dump(settings, F, indent=4)
     update_anime_dir()
+
+def natural_sort_key(text):
+    return [int(s) if s.isdigit() else s.lower() for s in re.split(r'(\d+)', text)]
 
 def load_css():
     css = b"""

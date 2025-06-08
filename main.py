@@ -48,7 +48,7 @@ class Application(Gtk.Application):
             if fetched_episodes is None or len(fetched_episodes) == 0:
                 print("Episodes do not exist")
                 return
-            # fetched_episodes = sorted(fetched_episodes)  # Never sort :)
+            fetched_episodes = sorted(fetched_episodes, key=natural_sort_key)  # Always sort :\
             for episode in fetched_episodes: # Re-Add found episodes
                 anime_data = os.path.join(self.current_anime, "PTBAnime-info.json")
                 self.episode_selection_grid.append(EpisodeCard(anime_data, self.current_anime, episode_n, os.path.join(self.current_anime, episode)))
@@ -127,10 +127,15 @@ class Application(Gtk.Application):
         self.headerbar_episodes.set_title_widget(Gtk.Label.new("PTBAnime - " + (anime_data["title"] if settings["title-language"] == "jp" else anime_data["title-en"])))
         # Update Cover
         if cover_path is None:
-            bad_cover_picture_episodes = GdkPixbuf.Pixbuf.new_from_file(os.path.join(base_dir, "assets", "anime_card_thumbnail.png"))
+            bad_cover_picture_episodes = GdkPixbuf.Pixbuf.new_from_file(os.path.join(base_dir, "assets", "anime_card_thumbnail.png"))  # If you use default u git slow lol
+            cover_picture_episodes_texture = Gdk.Texture.new_for_pixbuf(bad_cover_picture_episodes.scale_simple(280, 400, GdkPixbuf.InterpType.BILINEAR))
         else:
-            bad_cover_picture_episodes = GdkPixbuf.Pixbuf.new_from_file(cover_path)
-        cover_picture_episodes_texture = Gdk.Texture.new_for_pixbuf(bad_cover_picture_episodes.scale_simple(280, 400, GdkPixbuf.InterpType.BILINEAR))
+            cover_cache_path = str(os.path.join(os.path.dirname(cover_path), ".cache", os.path.basename(cover_path)))
+            if os.path.exists(cover_cache_path):
+                cover_picture_episodes_texture = Gdk.Texture.new_from_filename(cover_cache_path)
+            else:
+                bad_cover_picture_episodes = GdkPixbuf.Pixbuf.new_from_file(cover_path)
+                cover_picture_episodes_texture = Gdk.Texture.new_for_pixbuf(bad_cover_picture_episodes.scale_simple(280, 400, GdkPixbuf.InterpType.BILINEAR))
         self.cover_picture_episodes.set_paintable(cover_picture_episodes_texture)
         self.title_episodes.set_label(anime_data["title"] if settings["title-language"] == "jp" else anime_data["title-en"])
         self.description_episodes.set_label(anime_data["description"])
