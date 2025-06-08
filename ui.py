@@ -36,6 +36,7 @@ class EpisodeCard(Gtk.Box):
         self.set_margin_bottom(10)
         self.set_margin_start(10)
         self.set_margin_end(10)
+        self.set_tooltip_text(video_path)
         self.label = Gtk.Label.new("Episode " + str(episode))
         self.label.set_valign(Gtk.Align.START)
         self.label.set_hexpand(False)
@@ -325,7 +326,7 @@ def load_css():
     }
     
     #headerbar_video {
-        transition: opacity 300ms ease;
+        transition: all 0.3s ease-in-out;
     }
     """
     css_provider = Gtk.CssProvider()

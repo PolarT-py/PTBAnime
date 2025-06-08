@@ -11,6 +11,7 @@ class Application(Gtk.Application):
         self.stack = Gtk.Stack()
         self.win = Gtk.ApplicationWindow()
         self.current_anime = None
+        self.current_watching = None
         print("Initialized")
 
     def on_search_changed(self, entry):
@@ -79,6 +80,10 @@ class Application(Gtk.Application):
     def go_to_episodes(self, filler_lol_2=None):
         self.stack.set_visible_child_name("Episodes")
 
+    def go_to_episodes_from_vid(self, filler_lol_2=None):
+        self.media.pause()
+        self.stack.set_visible_child_name("Episodes")
+
     def on_anime_flowbox_child_activate(self, flowbox_u_wont_need_cuz_global, child):
         print("Going to Anime:", child.get_child().title)
         self.update_episodes(child.get_child().info, child.get_child().image_path)
@@ -142,19 +147,22 @@ class Application(Gtk.Application):
         # Grid is updated in on_anime_flowbox_child_activate
 
     def update_video(self):
-        pass
+        self.media.set_filename(self.current_watching)
 
     def on_episode_selected(self, e1=None, child=None):
         video_path = os.path.basename(child.get_child().video_path)  # Not full path
         print("Watching", self.current_anime, video_path)
         self.stack.set_visible_child_name("Video")
+        self.current_watching = os.path.join(anime_dir, self.current_anime, video_path)
+        self.update_video()
+        self.media.play()
         # subprocess.Popen(["mpv", os.path.join(anime_dir, self.current_anime, video_path)])  # Just for testing
 
     def on_m_enter_bar(self, controller, x, y):
-        self.headerbar_video.set_opacity(1)
+        self.headerbar_revealer.set_reveal_child(True)
 
     def on_m_leave_bar(self, controller):
-        self.headerbar_video.set_opacity(0)
+        self.headerbar_revealer.set_reveal_child(False)
 
     def do_activate(self):
         print("Activated")
@@ -383,31 +391,44 @@ class Application(Gtk.Application):
     def load_info_editor(self):
         pass
 
-    def load_video_player(self):
+    def load_video_player(self):  # This is so forking frustrating
         # Main Box and Overlay
         main_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=0)
-        main_overlay = Gtk.Overlay()
-        overlay_motion = Gtk.EventControllerMotion.new()
-        overlay_motion.connect("enter", self.on_m_enter_bar)
-        overlay_motion.connect("leave", self.on_m_leave_bar)
-        main_overlay.add_controller(overlay_motion)
-
+        overlay = Gtk.Overlay()
+        self.headerbar_revealer = Gtk.Revealer()
+        self.headerbar_revealer.set_transition_type(Gtk.RevealerTransitionType.CROSSFADE)
+        self.headerbar_revealer.set_transition_duration(300)
+        self.headerbar_revealer.set_reveal_child(False)
+        motion = Gtk.EventControllerMotion.new()
+        motion.connect("enter", self.on_m_enter_bar)
+        motion.connect("leave", self.on_m_leave_bar)
+        self.headerbar_revealer.add_controller(motion)
 
         # Header Bar
         self.headerbar_video = Gtk.HeaderBar()
-        self.headerbar_video.set_title_widget(Gtk.Label(label="PTBAnime - Episodes"))
+        self.headerbar_video.set_title_widget(Gtk.Label(label="PTBAnime - Video"))
         back_button = Gtk.Button(icon_name="go-previous-symbolic")
-        back_button.connect("clicked", self.go_to_episodes)
+        back_button.connect("clicked", self.go_to_episodes_from_vid)
         self.headerbar_video.pack_start(back_button)
-        menu = Gio.Menu()
-        menu_button = Gtk.MenuButton(icon_name="open-menu-symbolic")
-        menu_button.set_menu_model(menu)
-        self.headerbar_video.pack_end(menu_button)
         self.headerbar_video.set_name("headerbar_video")
-        self.headerbar_video.set_opacity(0)
+        self.headerbar_video.set_hexpand(True)
+        self.headerbar_video.set_vexpand(False)
+        self.headerbar_video.set_valign(Gtk.Align.START)
+        self.headerbar_revealer.set_child(self.headerbar_video)
 
-        main_overlay.add_overlay(self.headerbar_video)
-        main_box.append(main_overlay)
+        # Media and Video Player
+        self.media = Gtk.MediaFile.new()
+        self.media.set_loop(False)
+        self.video = Gtk.Video()
+        self.video.set_hexpand(True)
+        self.video.set_vexpand(True)
+        self.video.set_media_stream(self.media)
+
+        # Add the stuff
+        main_box.append(self.video)
+        overlay.add_overlay(self.headerbar_revealer)  # Pls fix
+        # overlay.set_child(self.video)
+        main_box.append(overlay)
         self.stack.add_named(main_box, "Video")
 
 # Run App
