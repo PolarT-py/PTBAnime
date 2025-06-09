@@ -1,12 +1,9 @@
-import json
-import os
-import ffmpeg
-import sys
-print(ffmpeg.__file__)
-print(sys.path)
+import re, json, ffmpeg
+import os, sys, subprocess, threading, shutil, time
+from concurrent.futures import ThreadPoolExecutor
 import gi
 gi.require_version('Gtk', '4.0')
-from gi.repository import Gtk, Gdk, Pango, GdkPixbuf
+from gi.repository import Gtk, Gdk, Pango, GdkPixbuf, Gio, GLib
 
 base_dir = os.path.dirname(os.path.abspath(__file__))
 settings_path = os.path.join(base_dir, "settings.json")
@@ -39,6 +36,7 @@ class EpisodeCard(Gtk.Box):
         self.set_margin_bottom(10)
         self.set_margin_start(10)
         self.set_margin_end(10)
+        self.set_tooltip_text(video_path)
         self.label = Gtk.Label.new("Episode " + str(episode))
         self.label.set_valign(Gtk.Align.START)
         self.label.set_hexpand(False)
@@ -72,7 +70,7 @@ class EpisodeCard(Gtk.Box):
         self.append(self.label)
 
 class AnimeCard(Gtk.Box):  # Creates a card (Grid Item) for a Grid
-    def __init__(self, info=None, image_path=None):
+    def __init__(self, info=None, image_path=None, anime_path=None):
         super().__init__(orientation=Gtk.Orientation.VERTICAL, spacing=5)
         if info is None:  # Really hope this doesn't happen
             self.info = ptbanime_data_file
@@ -83,12 +81,19 @@ class AnimeCard(Gtk.Box):  # Creates a card (Grid Item) for a Grid
         self.label = Gtk.Label(label=self.title)
         self.size = (280, 400)
         self.image_path = image_path
-        self.anime_path = os.path.dirname(image_path)
+        self.anime_path = anime_path
 
         if self.image_path is None:
             self.image_path = os.path.join(base_dir, "assets", "anime_card_thumbnail.png")
-        bad_cover_texture = GdkPixbuf.Pixbuf.new_from_file(image_path)
-        cover_texture = Gdk.Texture.new_for_pixbuf(bad_cover_texture.scale_simple(self.size[0], self.size[1], GdkPixbuf.InterpType.BILINEAR))
+        else:  # If there's an image path go here
+            cover_cache_path = str(os.path.join(anime_dir, self.anime_path, ".cache", os.path.basename(image_path)))
+            if os.path.exists(cover_cache_path):  # Use cached file if can
+                cover_texture = Gdk.Texture.new_from_filename(cover_cache_path)
+            else:  # Generate cache
+                bad_cover_pixbuf = GdkPixbuf.Pixbuf.new_from_file(self.image_path)
+                scaled_cover_pixbuf = bad_cover_pixbuf.scale_simple(self.size[0], self.size[1], GdkPixbuf.InterpType.BILINEAR)
+                cover_texture = Gdk.Texture.new_for_pixbuf(scaled_cover_pixbuf)
+                scaled_cover_pixbuf.savev(cover_cache_path, "png", [], [])
 
         self.set_size_request(self.size[0], self.size[1])
         self.set_spacing(0)
@@ -138,7 +143,9 @@ def fetch_anime_folder():
     print("Found Anime:", found_anime)
     return found_anime
 
-def get_anime_info(select_anime_folder):  # Gets the anime info. Testing...
+def get_anime_info(select_anime_folder):  # Gets the anime info.
+    if anime_dir_is_home_dir():
+        return ptbanime_data_file, None
     # select_anime_folder is the anime folder name
     full_select_anime_folder = os.path.join(anime_dir, select_anime_folder)  # Full anime folder path
     print(full_select_anime_folder)
@@ -191,16 +198,19 @@ def get_anime_info(select_anime_folder):  # Gets the anime info. Testing...
         print("Created new PTBAnime data file!")
     return anime_data, cover_image_path  # Return the anime data and cover image path
 
+def anime_dir_is_home_dir():  # Checks if anime folder is the home directory
+    return settings["anime_folder"] == os.path.expanduser("~")
+
 def extract_video_thumbnail(video_path):
     # Create cache stuff
     cache_dir = os.path.join(os.path.dirname(video_path), ".cache")
     os.makedirs(cache_dir, exist_ok=True)
     output_path = os.path.join(os.path.dirname(video_path), ".cache", os.path.basename(video_path) + ".jpg")
-    # Check if a cache file exists already
+    # Check if the cache file exists already
     if os.path.exists(output_path):
         return output_path
     # Get Video Duration
-    print("VIDEO PATH:", video_path)
+    print("Generating thumbnail cache for:", video_path)
     try:
         probe = ffmpeg.probe(video_path)
     except ffmpeg._run.Error as e:
@@ -233,8 +243,12 @@ def select_folder(window: Gtk.Window, on_folder_selected: callable):
         if response_id == Gtk.ResponseType.ACCEPT:
             folder = _dialog.get_file().get_path()
             print("Selected folder:", folder)
+            if settings["first-time"]:  # Clear first time
+                settings["first-time"] = False
+                with open(settings_path, "w") as F:
+                    json.dump(settings, F, indent=4)
         else:
-            print("Cancelled")
+            print("Cancelled selecting folder")
         _dialog.destroy()
         on_folder_selected(folder)  # Call back
 
@@ -255,6 +269,9 @@ def check_settings():  # Fix settings options if empty
     with open(settings_path, "w") as F:
         json.dump(settings, F, indent=4)
     update_anime_dir()
+
+def natural_sort_key(text):
+    return [int(s) if s.isdigit() else s.lower() for s in re.split(r'(\d+)', text)]
 
 def load_css():
     css = b"""
@@ -306,6 +323,10 @@ def load_css():
     .epicard_label {
         font-size: 15px;
         /*background-color: pink;*/
+    }
+    
+    #headerbar_video {
+        transition: all 0.3s ease-in-out;
     }
     """
     css_provider = Gtk.CssProvider()
