@@ -32,7 +32,7 @@ PTBAnime is a cool personal anime library manager and player built in Python usi
 - PyGObject
 - ffmpeg-python
 
-Make sure you have python 3 installed on your computer, and install `GObject`, `PyGobject` and `ffmpeg-python` via `pip`. Then you have to install GTK onto your system, if you are a Windows user you do not have to worry, but for Linux and Mac users you have to install it manually. For Linux users, install it via your favorite package manager or build it yourself https://www.gtk.org/docs/installations/linux/, and for Mac users check out how to install here: https://www.gtk.org/docs/installations/macos/
+Make sure you have python 3 installed on your computer, and install `GObject`, `PyGobject` and `ffmpeg-python` via `pip`. Then you have to install GTK onto your system, if you are a Windows user you do not have to worry if you are running the binary, but for Linux and Mac users you have to install it manually. For Linux users, install it via your favorite package manager or build it yourself https://www.gtk.org/docs/installations/linux/, and for Mac users check out how to install here: https://www.gtk.org/docs/installations/macos/
 
 ### Setup
 You will need to do a lot of manual work to make everything look pretty, you need to select the folder all your anime videos is in, which is the easy part. You also then have to edit PTBAnime-info files to add a Title and Description, and also a cover image, in the form of a png/jpg. 
