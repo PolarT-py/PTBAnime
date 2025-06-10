@@ -1,5 +1,5 @@
 import re, json, ffmpeg
-import os, sys, subprocess, threading, shutil, time
+import os, sys, subprocess, threading, shutil, time, atexit
 from concurrent.futures import ThreadPoolExecutor
 import gi
 gi.require_version('Gtk', '4.0')
@@ -14,21 +14,22 @@ ptbanime_data_file = {  # Default data file
     "title": "Anime Title",          # Title
     "title-en": "Anime Title (en)",  # Title in english
     "last-episode": 1,               # Last episode you watched
-    "last-episode-timestamp": 0,     # Where you last left off
+    "last-episode-timestamp": 0,     # Where you last left off of last-episode
     "description": "Default description. You should edit the PTBAnime-info.json file in the folder of this anime to change the description, you can also change other stuff too, like the english and japanese titles. Changing the titles won't change your folder name. "
 }
 
 
 class EpisodeCard(Gtk.Box):
-    def __init__(self, info=None, anime_path=None, episode=0, video_path=None):
+    def __init__(self, info=None, anime_path=None, label_text="EMPTY", video_path=None, episode_num=0):
         super().__init__(orientation=Gtk.Orientation.VERTICAL, spacing=5)
         if info is None:
             self.info = ptbanime_data_file
         else:
             self.info = info
         self.anime_path = anime_path
-        self.episode = episode
+        self.label_text = label_text
         self.video_path = video_path
+        self.episode_num = episode_num
 
         self.size = (160, 90)
         self.set_size_request(self.size[0], self.size[1])
@@ -37,7 +38,7 @@ class EpisodeCard(Gtk.Box):
         self.set_margin_start(10)
         self.set_margin_end(10)
         self.set_tooltip_text(video_path)
-        self.label = Gtk.Label.new("Episode " + str(episode))
+        self.label = Gtk.Label.new(label_text)
         self.label.set_valign(Gtk.Align.START)
         self.label.set_hexpand(False)
         self.label.set_vexpand(True)
@@ -148,6 +149,7 @@ def get_anime_info(select_anime_folder):  # Gets the anime info.
         return ptbanime_data_file, None
     # select_anime_folder is the anime folder name
     full_select_anime_folder = os.path.join(anime_dir, select_anime_folder)  # Full anime folder path
+    print("GETTING INFO FROM ANIME:", full_select_anime_folder)
     print(full_select_anime_folder)
     data_file_path = os.path.join(str(full_select_anime_folder), "PTBAnime-info.json")  # Full data file path
     cover_image_path = os.path.join(str(base_dir), "assets", "anime_card_thumbnail.png")  # Default cover image
@@ -323,6 +325,15 @@ def load_css():
     .epicard_label {
         font-size: 15px;
         /*background-color: pink;*/
+    }
+    .epicard-watched {
+        border-radius: 2px;
+    }
+    .epicard-continue {
+        border-radius: 4px;
+    }
+    .epicard-not-watched {
+        opacity: 0.1;
     }
     
     #headerbar_video {

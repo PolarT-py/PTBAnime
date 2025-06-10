@@ -1,4 +1,5 @@
-# Assuming ui.py exists and contains necessary definitions
+import gi
+gi.require_version('Gtk', '4.0')
 from ui import *
 
 # Global debug flag
@@ -22,6 +23,8 @@ class Application(Gtk.Application):
         self.win = Gtk.ApplicationWindow()
         self.current_anime = None
         self.current_watching = None
+        self.currently_watching_episode_n = False
+        self.is_currently_watching = False
 
         # Timer for hiding controls
         self.hide_controls_timeout_id = None
@@ -32,14 +35,63 @@ class Application(Gtk.Application):
         self.mouse_over_video_area = False  # Renamed from mouse_over_video_hitbox
         self.mouse_over_header = False
         self.mouse_over_controls = False
+        self.motion_controller_mouse_movement = Gtk.EventControllerMotion.new()
+        self.motion_controller_mouse_movement.connect("motion", self.show_controls_and_header_and_reset_hide_timer)
+        self.mouse_last_pos = [0, 0]
+        self.key_repeat_id = None
+        GLib.timeout_add(4000, self.autosave_video_data)
 
         # Essential UI elements for video player
-        self.video = None  # Will be initialized in load_video_player
-        self.headerbar_revealer = None  # Will be initialized in load_video_player
-        self.media_controls_revealer = None  # Will be initialized in load_video_player
-        self.media = None  # Will be initialized in load_video_player
+        self.video: Gtk.Video = Gtk.Video.new()
+        self.headerbar_revealer: Gtk.Revealer = Gtk.Revealer.new()
+        self.media_controls_revealer: Gtk.Revealer = Gtk.Revealer.new()
+        self.media: Gtk.MediaFile = Gtk.MediaFile.new()
 
         debug_print("Application: Initialization complete.")
+
+    def cleanup(self):
+        self.save_video_data()
+
+    def autosave_video_data(self):
+        if self.is_currently_watching:
+            anime_data_path = os.path.join(self.current_anime, "PTBAnime-info.json")
+            with open(anime_data_path, "r") as F:
+                anime_data = json.load(F)
+            anime_data["last-episode-timestamp"] = self.media.get_timestamp()
+            with open(anime_data_path, "w") as F:
+                json.dump(anime_data, F, indent=4)
+            print("Saved data")
+        return True
+
+    def save_video_data(self):
+        if self.is_currently_watching:
+            anime_data_path = os.path.join(self.current_anime, "PTBAnime-info.json")
+            with open(anime_data_path, "r") as F:
+                anime_data = json.load(F)
+            if anime_data["last-episode-timestamp"] == self.media.get_timestamp():  # If finished video completely
+                self.go_to_episodes_from_vid()
+                anime_data["last-episode"] += 1
+            anime_data["last-episode-timestamp"] = self.media.get_timestamp()
+            with open(anime_data_path, "w") as F:
+                json.dump(anime_data, F, indent=4)
+            print("Saved data")
+
+    def load_video_data(self):
+        if self.media.is_prepared():
+            anime_data_path = os.path.join(self.current_anime, "PTBAnime-info.json")
+            with open(anime_data_path, "r") as F:
+                anime_data = json.load(F)
+            self.media.seek(anime_data["last-episode-timestamp"])
+            return False  # Finished
+        return True  # Keep checking
+
+    def show_controls_and_header_and_reset_hide_timer(self, controller=None, x=None, y=None):
+        if (round(x), round(y)) != (round(self.mouse_last_pos[0]), round(self.mouse_last_pos[1])):
+            self.show_controls_and_header()
+            self.reset_hide_timer()
+            # print("x:", x, "     y:", y)
+            # print("Mouse cursor moved")
+        self.mouse_last_pos = [x, y]
 
     def on_search_changed(self, entry):
         debug_print(f"on_search_changed: Query changed to '{entry.get_text()}'")
@@ -91,9 +143,20 @@ class Application(Gtk.Application):
             debug_print(f"refresh_episodes_grid.do: Found {len(fetched_episodes)} episodes. Sorting and re-adding.")
             fetched_episodes = sorted(fetched_episodes, key=natural_sort_key)  # Always sort :\
             for episode in fetched_episodes:  # Re-Add found episodes
-                anime_data = os.path.join(self.current_anime, "PTBAnime-info.json")
-                self.episode_selection_grid.append(
-                    EpisodeCard(anime_data, self.current_anime, episode_n, os.path.join(self.current_anime, episode)))
+                with open(os.path.join(self.current_anime, "PTBAnime-info.json"), "r") as F:
+                    anime_data = json.load(F)
+                card: EpisodeCard = EpisodeCard(anime_data, self.current_anime, "Episode " + str(episode_n), os.path.join(self.current_anime, episode), episode_n)
+                if anime_data["last-episode"] == episode_n:  # Give the card a unique look based on last watched
+                    card.cover.add_css_class("epicard-continue")
+                    card.label.set_text("Continue " + card.label.get_text() + "...")
+                elif episode_n < anime_data["last-episode"]:
+                    card.cover.add_css_class("epicard-watched")
+                else:
+                    card.cover.add_css_class("epicard-not-watched")
+                if len(fetched_episodes) == 1:  # If there is only 1 episode, make it show as a movie instead
+                    card.label.set_text("Watch Movie")
+                    self.episode_selection_label.set_text("Movie")
+                self.episode_selection_grid.append(card)
                 debug_print(f"refresh_episodes_grid.do: Appended EpisodeCard for episode {episode_n} ('{episode}')")
                 episode_n += 1
 
@@ -133,7 +196,11 @@ class Application(Gtk.Application):
 
     def go_to_episodes_from_vid(self, filler_lol_2=None):
         debug_print("go_to_episodes_from_vid: Pausing media and transitioning to 'Episodes' stack page.")
+        self.is_currently_watching = False
         self.media.pause()
+        self.save_video_data()
+        self.refresh_episodes_grid()
+        self.win.unfullscreen()
         self.stack.set_visible_child_name("Episodes")
 
     def on_anime_flowbox_child_activate(self, flowbox_u_wont_need_cuz_global, child):
@@ -143,8 +210,7 @@ class Application(Gtk.Application):
         self.current_anime = child.get_child().anime_path
         self.refresh_episodes_grid()
         self.go_to_episodes()
-        debug_print(
-            f"on_anime_flowbox_child_activate: Updated episodes, refreshed grid, and navigated to episodes page.")
+        debug_print(f"on_anime_flowbox_child_activate: Updated episodes, refreshed grid, and navigated to episodes page.")
 
     def generate_all_cache(self, p1=None, p2=None):
         debug_print("generate_all_cache: Starting cache generation in a new thread.")
@@ -227,27 +293,44 @@ class Application(Gtk.Application):
         self.title_episodes.set_label(
             anime_data["title"] if settings["title-language"] == "jp" else anime_data["title-en"])
         self.description_episodes.set_label(anime_data["description"])
+        self.episode_selection_label.set_text("Episodes")
         debug_print("update_episodes: Cover, title, and description updated.")
         # Grid is updated in on_anime_flowbox_child_activate
 
     def update_video(self):
         debug_print(f"update_video: Setting video filename to '{self.current_watching}'.")
-        self.media.set_filename(self.current_watching)
+        if self.current_watching != self.media.get_file():  # If it's the same video, it doesn't have to reload
+            self.media.set_filename(self.current_watching)
+        print("Current media file: ", self.media.get_file())
 
     def on_episode_selected(self, e1=None, child=None):
         video_path = os.path.basename(child.get_child().video_path)  # Not full path
         debug_print(f"on_episode_selected: Episode '{video_path}' selected for watching.")
         print("Watching", self.current_anime, video_path)  # Original print
+        self.is_currently_watching = True
+        self.currently_watching_episode_n = child.get_child().episode_num
+
+        anime_data_path = os.path.join(self.current_anime, "PTBAnime-info.json")
+        with open(anime_data_path, "r") as F:
+            anime_data = json.load(F)
+        if anime_data["last-episode"] != self.currently_watching_episode_n:  # New episode, set timestamp to 0
+            anime_data["last-episode-timestamp"] = 0
+        anime_data["last-episode"] = self.currently_watching_episode_n
+        with open(anime_data_path, "w") as F:
+            json.dump(anime_data, F, indent=4)
+
         self.stack.set_visible_child_name("Video")
         self.current_watching = os.path.join(anime_dir, self.current_anime, video_path)
         self.update_video()
         self.media.play()
-        debug_print("on_episode_selected: Video playing.")
+        GLib.timeout_add(100, self.load_video_data)
 
-        # Show controls initially (they will stay for 3 seconds, or longer if mouse moves)
+        # Show controls initially (they will stay for a second, or longer if mouse moves)
+        debug_print("on_episode_selected: Video playing.")
         debug_print("on_episode_selected: Showing controls for initial video start.")
         self.show_controls_and_header()
         self.reset_hide_timer()
+        self.win.fullscreen()
 
     def show_controls_and_header(self):
         debug_print(f"show_controls_and_header: Current controls_are_visible state: {self.controls_are_visible}")
@@ -274,7 +357,7 @@ class Application(Gtk.Application):
             GLib.source_remove(self.hide_controls_timeout_id)
             debug_print("reset_hide_timer: Removed previous hide timer.")
         # Schedule the hide check after 3 seconds of inactivity
-        self.hide_controls_timeout_id = GLib.timeout_add_seconds(3, self.hide_controls_and_header_callback)
+        self.hide_controls_timeout_id = GLib.timeout_add_seconds(1, self.hide_controls_and_header_callback)
         debug_print("reset_hide_timer: New hide timer set for 3 seconds.")
 
     def hide_controls_and_header_callback(self):
@@ -291,46 +374,6 @@ class Application(Gtk.Application):
             # If mouse is over an interactive area, re-arm the timer to check again later (e.g., in 1 second)
             return GLib.SOURCE_CONTINUE  # Keep the source alive
 
-    # Renamed from on_video_hitbox_motion_notify
-    def on_video_motion_notify(self, event_controller, x, y):
-        # This is the main trigger for showing controls and resetting the timer.
-        debug_print(f"on_video_motion_notify: Mouse motion detected on video at ({x}, {y}).")
-        # Set the flag indicating mouse is over the video area
-        self.mouse_over_video_area = True  # Updated flag name
-        self.show_controls_and_header()
-        self.reset_hide_timer()
-
-    # Renamed from on_video_hitbox_leave_notify
-    def on_video_leave_notify(self, event_controller):
-        debug_print("on_video_leave_notify: Mouse left video area.")
-        self.mouse_over_video_area = False  # Updated flag name
-        # When mouse leaves the video, immediately trigger a hide check
-        self.reset_hide_timer()
-
-    def on_header_motion_notify(self, event_controller, x, y):
-        # This handler specifically for the header bar itself.
-        debug_print(f"on_header_motion_notify: Mouse motion detected on header at ({x}, {y}).")
-        self.mouse_over_header = True
-        self.show_controls_and_header()  # Redundant if hitbox covers, but harmless.
-        self.reset_hide_timer()
-
-    def on_header_leave_notify(self, event_controller):
-        debug_print("on_header_leave_notify: Mouse left header area.")
-        self.mouse_over_header = False
-        self.reset_hide_timer()  # Start/reset timer to hide if no other hover is active
-
-    def on_controls_motion_notify(self, event_controller, x, y):
-        # This handler specifically for the media controls.
-        debug_print(f"on_controls_motion_notify: Mouse motion detected on controls at ({x}, {y}).")
-        self.mouse_over_controls = True
-        self.show_controls_and_header()  # Redundant if hitbox covers, but harmless.
-        self.reset_hide_timer()
-
-    def on_controls_leave_notify(self, event_controller):
-        debug_print("on_controls_leave_notify: Mouse left controls area.")
-        self.mouse_over_controls = False
-        self.reset_hide_timer()  # Start/reset timer to hide if no other hover is active
-
     # --- Revealer reveal-child property change handler ---
     def on_revealer_reveal_child_notify(self, revealer, pspec):
         # This signal fires when the 'reveal-child' property changes.
@@ -346,18 +389,87 @@ class Application(Gtk.Application):
                                     self.media_controls_revealer.get_reveal_child()
         debug_print(f"on_revealer_reveal_child_notify: controls_are_visible updated to: {self.controls_are_visible}")
 
+    def skip_left(self):
+        curr_pos = self.media.get_timestamp()  # Microseconds for whatever reason. 5 seconds == 5000000 microseconds
+        new_pos = curr_pos - 5000000
+        if new_pos < 0: new_pos = 0
+        self.media.seek(new_pos)
+        print("New time:", new_pos)
+
+    def skip_right(self):
+        curr_pos = self.media.get_timestamp()  # 5 seconds == 5000000 microseconds
+        new_pos = curr_pos + 5000000
+        if new_pos > self.media.get_duration(): new_pos = self.media.get_duration()
+        self.media.seek(new_pos)
+        print("New time:", new_pos)
+
+    def skip_left_big(self):
+        curr_pos = self.media.get_timestamp()
+        new_pos = curr_pos - 10000000
+        if new_pos < 0: new_pos = 0
+        self.media.seek(new_pos)
+        print("New time:", new_pos)
+
+    def skip_right_big(self):
+        curr_pos = self.media.get_timestamp()
+        new_pos = curr_pos + 10000000
+        if new_pos > self.media.get_duration(): new_pos = self.media.get_duration()
+        self.media.seek(new_pos)
+        print("New time:", new_pos)
+
     # --- New Key Press Handler ---
-    def on_key_pressed(self, event_controller, keyval, keycode, state):
+    def on_key_pressed(self, event_controller, keyval, keycode, state):  # I love youtube keybinds
         keyname = Gdk.keyval_name(keyval)  # Corrected function name
         debug_print(f"on_key_pressed: Key pressed: {keyname} (keyval: {keyval})")
 
-        # Check for 's' or 'S'
-        if keyname and keyname.lower() == 's':
-            debug_print("on_key_pressed: 'S' key detected. Showing controls and resetting timer.")
-            self.show_controls_and_header()
-            self.reset_hide_timer()
-            return Gdk.EVENT_STOP  # Stop propagation if we handle it
+        if self.stack.get_visible_child_name() == "Video":  # Controls that are only available in while watching a video
+            if keyname and keyname.lower() == 's':
+                self.show_controls_and_header()
+                self.reset_hide_timer()
+                return Gdk.EVENT_STOP  # Stop propagation if we handle it
+            if keyname in ("space", "k"):
+                if self.media.get_playing():
+                    self.media.pause()
+                else:
+                    self.media.play()
+                self.show_controls_and_header()
+                self.reset_hide_timer()
+                return Gdk.EVENT_STOP
+            if keyval == Gdk.KEY_Escape:
+                self.go_to_episodes_from_vid()
+                return Gdk.EVENT_STOP
+            if keyval == Gdk.KEY_Left and self.key_repeat_id is None:
+                self.skip_left()
+                self.key_repeat_id = GLib.timeout_add(300, lambda: (self.skip_left(), True)[1])
+                self.show_controls_and_header()
+                self.reset_hide_timer()
+                return Gdk.EVENT_STOP
+            if keyval == Gdk.KEY_Right and self.key_repeat_id is None:
+                self.skip_right()
+                self.key_repeat_id = GLib.timeout_add(300, lambda: (self.skip_right(), True)[1])
+                self.show_controls_and_header()
+                self.reset_hide_timer()
+                return Gdk.EVENT_STOP
+            if keyval == Gdk.KEY_j and self.key_repeat_id is None:
+                self.skip_left_big()
+                self.key_repeat_id = GLib.timeout_add(300, lambda: (self.skip_left_big(), True)[1])
+                self.show_controls_and_header()
+                self.reset_hide_timer()
+                return Gdk.EVENT_STOP
+            if keyval == Gdk.KEY_l and self.key_repeat_id is None:
+                self.skip_right_big()
+                self.key_repeat_id = GLib.timeout_add(300, lambda: (self.skip_right_big(), True)[1])
+                self.show_controls_and_header()
+                self.reset_hide_timer()
+                return Gdk.EVENT_STOP
 
+        return Gdk.EVENT_PROPAGATE  # Allow other handlers to process the key
+
+    def on_key_released(self, event_controller, keyval, keycode, state):
+        if self.stack.get_visible_child_name() == "Video":  # Controls that are only available in while watching a video
+            if keyval in (Gdk.KEY_Left, Gdk.KEY_Right, Gdk.KEY_j, Gdk.KEY_l):
+                GLib.source_remove(self.key_repeat_id)
+                self.key_repeat_id = None
         return Gdk.EVENT_PROPAGATE  # Allow other handlers to process the key
 
     def do_activate(self):
@@ -386,6 +498,7 @@ class Application(Gtk.Application):
         # --- IMPORTANT: Add EventControllerKey to the window here ---
         key_controller = Gtk.EventControllerKey.new()
         key_controller.connect("key-pressed", self.on_key_pressed)
+        key_controller.connect("key-released", self.on_key_released)
         self.win.add_controller(key_controller)
         debug_print("do_activate: Key event controller added to main window.")
         # --- End Important ---
@@ -403,13 +516,6 @@ class Application(Gtk.Application):
         self.load_video_player()
         debug_print("do_activate: UI pages loaded.")
 
-        # Check first time
-        if settings["first-time"]:
-            print("First time!")  # Original print
-            debug_print("do_activate: First time application run detected.")
-            self.choose_anime_folder()
-            debug_print("do_activate: Anime folder selection initiated for first time run.")
-
         # Set the Library to visible on launch
         self.stack.set_visible_child_name("Library")
         debug_print("do_activate: Setting 'Library' as visible child.")
@@ -421,11 +527,18 @@ class Application(Gtk.Application):
         self.win.present()
         debug_print("do_activate: Window presented.")
 
+        # Check first time
+        if settings["first-time"]:
+            print("First time!")  # Original print
+            debug_print("do_activate: First time application run detected.")
+            self.choose_anime_folder()
+            debug_print("do_activate: Anime folder selection initiated for first time run.")
+
     def load_library(self):
         debug_print("load_library: Loading Library UI.")
         # Header Bar
         headerbar = Gtk.HeaderBar()
-        headerbar.set_title_widget(Gtk.Label(label="PTBAnime - Episodes"))
+        headerbar.set_title_widget(Gtk.Label(label="PTBAnime - Library"))
         refresh_button = Gtk.Button(icon_name="view-refresh")
         refresh_button.connect("clicked", self.refresh_grid)
         headerbar.pack_start(refresh_button)
@@ -657,19 +770,12 @@ class Application(Gtk.Application):
         back_button = Gtk.Button(icon_name="go-previous-symbolic")
         back_button.connect("clicked", self.go_to_episodes_from_vid)
         self.headerbar_video.pack_start(back_button)
-        self.headerbar_video.set_name("headerbar_video")  # Give it a name for debugging
+        self.headerbar_video.set_name("headerbar_video")
         self.headerbar_video.set_hexpand(True)
         self.headerbar_video.set_vexpand(False)
         self.headerbar_video.set_valign(Gtk.Align.START)
         self.headerbar_revealer.set_child(self.headerbar_video)
         debug_print("load_video_player: Video header bar configured.")
-
-        # Attach motion/leave controllers to headerbar_video itself
-        header_motion_controller = Gtk.EventControllerMotion.new()
-        header_motion_controller.connect("motion", self.on_header_motion_notify)
-        header_motion_controller.connect("leave", self.on_header_leave_notify)
-        self.headerbar_video.add_controller(header_motion_controller)
-        debug_print("load_video_player: Mouse controllers attached to headerbar_video.")
 
         # Media and Video Player
         self.media = Gtk.MediaFile.new()
@@ -678,22 +784,13 @@ class Application(Gtk.Application):
         self.video.set_hexpand(True)
         self.video.set_vexpand(True)
         self.video.set_media_stream(self.media)
-        self.video.set_name("main_video_widget")  # Added name for debugging
-
-        # --- NEW: Attach motion/leave controllers directly to the Gtk.Video widget ---
-        video_motion_controller = Gtk.EventControllerMotion.new()
-        video_motion_controller.connect("motion", self.on_video_motion_notify)
-        video_motion_controller.connect("leave", self.on_video_leave_notify)
-        self.video.add_controller(video_motion_controller)
-        debug_print("load_video_player: Mouse controllers attached directly to self.video.")
-        # --- END NEW ---
-        debug_print("load_video_player: Media file and video player created.")
+        self.video.set_name("main_video_widget")
 
         # Media Controls
         self.media_controls = Gtk.MediaControls(media_stream=self.media)
         self.media_controls.set_halign(Gtk.Align.FILL)
         self.media_controls.set_valign(Gtk.Align.END)
-        self.media_controls.set_name("media_controls")  # Give it a name for debugging
+        self.media_controls.set_name("media_controls")
         debug_print("load_video_player: Media controls created.")
 
         # Revealer for Media Controls
@@ -703,16 +800,9 @@ class Application(Gtk.Application):
         self.media_controls_revealer.set_reveal_child(False)
         # Connect to 'notify::reveal-child' signal
         self.media_controls_revealer.connect("notify::reveal-child", self.on_revealer_reveal_child_notify)
-        self.media_controls_revealer.set_name("media_controls_revealer")  # Give it a name for debugging
+        self.media_controls_revealer.set_name("media_controls_revealer")
         self.media_controls_revealer.set_child(self.media_controls)
         debug_print("load_video_player: Media controls revealer created (initially hidden).")
-
-        # Attach motion/leave controllers to media_controls itself
-        controls_motion_controller = Gtk.EventControllerMotion.new()
-        controls_motion_controller.connect("motion", self.on_controls_motion_notify)
-        controls_motion_controller.connect("leave", self.on_controls_leave_notify)
-        self.media_controls.add_controller(controls_motion_controller)
-        debug_print("load_video_player: Mouse controllers attached to media_controls.")
 
         # Add the stuff to the overlay
         self.video_overlay.set_child(self.video)
@@ -723,6 +813,7 @@ class Application(Gtk.Application):
         self.video_overlay.add_overlay(self.media_controls_revealer)
         debug_print("load_video_player: Header and media controls revealers added as overlays.")
 
+        main_box.add_controller(self.motion_controller_mouse_movement)
         main_box.append(self.video_overlay)
         self.stack.add_named(main_box, "Video")
         debug_print("load_video_player: Video page assembled and added to stack.")
@@ -741,6 +832,7 @@ if __name__ == "__main__":
         debug_print("main: Debug mode enabled from 'debug_mode' file.")
 
     app = Application()
+    atexit.register(app.cleanup)
     exit_status = app.run(sys.argv)
     debug_print(f"main: Application exited with status {exit_status}.")
     sys.exit(exit_status)
