@@ -24,6 +24,7 @@ class Application(Gtk.Application):
         self.current_anime = None
         self.current_watching = None
         self.currently_watching_episode_n = False
+        self.current_anime_total_episodes = None
         self.is_currently_watching = False
 
         # Timer for hiding controls
@@ -57,6 +58,13 @@ class Application(Gtk.Application):
             anime_data_path = os.path.join(self.current_anime, "PTBAnime-info.json")
             with open(anime_data_path, "r") as F:
                 anime_data = json.load(F)
+            if anime_data["last-episode-timestamp"] == self.media.get_timestamp():  # If finished video completely
+                self.go_to_episodes_from_vid()
+                anime_data["last-episode"] += 1
+                print(anime_data["last-episode"], self.current_anime_total_episodes)
+                if anime_data["last-episode"] > self.current_anime_total_episodes:
+                    anime_data["last-episode"] = self.current_anime_total_episodes
+                print(anime_data["last-episode"], self.current_anime_total_episodes)
             anime_data["last-episode-timestamp"] = self.media.get_timestamp()
             with open(anime_data_path, "w") as F:
                 json.dump(anime_data, F, indent=4)
@@ -71,6 +79,10 @@ class Application(Gtk.Application):
             if anime_data["last-episode-timestamp"] == self.media.get_timestamp():  # If finished video completely
                 self.go_to_episodes_from_vid()
                 anime_data["last-episode"] += 1
+                print(anime_data["last-episode"], self.current_anime_total_episodes)
+                if anime_data["last-episode"] > self.current_anime_total_episodes:
+                    anime_data["last-episode"] = self.current_anime_total_episodes
+                print(anime_data["last-episode"], self.current_anime_total_episodes)
             anime_data["last-episode-timestamp"] = self.media.get_timestamp()
             with open(anime_data_path, "w") as F:
                 json.dump(anime_data, F, indent=4)
@@ -142,6 +154,7 @@ class Application(Gtk.Application):
                 return
             debug_print(f"refresh_episodes_grid.do: Found {len(fetched_episodes)} episodes. Sorting and re-adding.")
             fetched_episodes = sorted(fetched_episodes, key=natural_sort_key)  # Always sort :\
+            self.current_anime_total_episodes = len(fetched_episodes)
             for episode in fetched_episodes:  # Re-Add found episodes
                 with open(os.path.join(self.current_anime, "PTBAnime-info.json"), "r") as F:
                     anime_data = json.load(F)
