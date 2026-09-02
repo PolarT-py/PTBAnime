@@ -1,6 +1,5 @@
 import QtQuick
 import QtQuick.Controls
-import QtQuick.Layouts
 
 import "../styles"
 
@@ -18,7 +17,7 @@ Page {
             
             text: "Overview Page"
             font.pixelSize: 24
-            color: "white"
+            color: Theme.fg1
         }
 
         Button {

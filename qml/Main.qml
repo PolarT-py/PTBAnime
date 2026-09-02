@@ -17,14 +17,18 @@ Window {
     minimumWidth: 1000
     minimumHeight: 700
 
+    color: Theme.bg2
     visible: true
 
+    // The beginning
     RowLayout {
         anchors.fill: parent
         spacing: 0
 
         // The Sidebar
         Sidebar {
+            id: sidebar
+
             Layout.fillHeight: true
             Layout.preferredWidth: 58
         }
@@ -33,11 +37,11 @@ Window {
         ColumnLayout {
             spacing: 0
 
-            // Top Bar
-            Topbar {
-                Layout.fillWidth: true
-                Layout.preferredHeight: 50
-            }
+            // Top Bar (Disable for now since it's literally useless)
+            // Topbar {
+            //     Layout.fillWidth: true
+            //     Layout.preferredHeight: 50
+            // }
 
             // Page stack for storing our pages
             StackView {
@@ -63,6 +67,7 @@ Window {
                 Layout.fillHeight: true
                 clip: true  // Don't overlap the sidebar during animations
 
+                // Cool Animation Enter Animation
                 replaceEnter: Transition {
                     NumberAnimation {
                         property: "x"
@@ -73,6 +78,7 @@ Window {
                     }
                 }
 
+                // Cool Animation Exit Animation
                 replaceExit: Transition {
                     NumberAnimation {
                         property: "x"
@@ -83,6 +89,7 @@ Window {
                     }
                 }
 
+                // Set the Home Page when you load in
                 initialItem: Home { id: homePage }
             }
         }

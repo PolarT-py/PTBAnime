@@ -2,7 +2,7 @@
     <img src="./assets/icons/icon.png" alt="PTBAnime Logo" style="width:25%;" align="center"/>
 </p>
 
-<h1 align=center>PTBAnime</h1>
+# PTBAnime
 
 ---
 
