@@ -20,6 +20,9 @@ Pane {
             text: "🏠"
             font.pixelSize: 30
 
+            palette { buttonText: Theme.fg1 }
+            background: Rectangle { color: Theme.bg2; radius: 6; border.color: Theme.bg3; border.width: 1 }
+
             Layout.alignment: Qt.AlignTop
 
             Layout.preferredWidth: 40
@@ -42,6 +45,9 @@ Pane {
                 text: "🎬"
                 font.pixelSize: 30
 
+                palette { buttonText: Theme.fg1 }
+                background: Rectangle { color: Theme.bg2; radius: 6; border.color: Theme.bg3; border.width: 1 }
+
                 Layout.preferredWidth: 40
                 Layout.preferredHeight: 40
 
@@ -54,6 +60,9 @@ Pane {
             Button {
                 text: "⚙️"
                 font.pixelSize: 30
+
+                palette { buttonText: Theme.fg1 }
+                background: Rectangle { color: Theme.bg2; radius: 6; border.color: Theme.bg3; border.width: 1 }
 
                 Layout.preferredWidth: 40
                 Layout.preferredHeight: 40

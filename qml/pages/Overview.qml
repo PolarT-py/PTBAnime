@@ -1,6 +1,7 @@
 import QtQuick
 import QtQuick.Controls
 
+import "../components"
 import "../styles"
 
 
@@ -20,8 +21,11 @@ Page {
             color: Theme.fg1
         }
 
-        Button {
-            text: "To Home"
+        NormalButton {
+            text: "Back"
+            fontSize: 20
+            paddingAmount: 20
+
             onClicked: {
                 pageStack.navigate("pages/Home.qml", 1)
             }
