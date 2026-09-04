@@ -6,7 +6,8 @@
 
 ---
 
-> ⚠️ **PTBAnime Rework in Progress!**
+> [!WARNING]
+> **PTBAnime Rework in Progress!**
 > 
 > The base App is not in proper working condition. It is still under heavy development and is NOT usable right now.
 

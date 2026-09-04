@@ -59,6 +59,11 @@ Window {
                         goingForward = pageIndex > currentPage
                         currentPage = pageIndex
                         replace(page)
+
+                        // If it's going to home, then execute cache manager
+                        if (pageIndex == 1) {
+                            backend.update_cache()
+                        }
                     }
                 }
 
@@ -119,6 +124,7 @@ Window {
                     } else {
                         pageStack.currentPage = 1
                         pageStack.push("pages/Home.qml", 1)
+                        backend.update_cache()
                     }
                 }
             }

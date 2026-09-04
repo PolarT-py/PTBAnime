@@ -13,7 +13,7 @@ from backend import library, cache_manager
 QtCore.QCoreApplication.setOrganizationName("PolarTea Studios")
 QtCore.QCoreApplication.setOrganizationDomain("dev.polartblock.ptbanime")
 QtCore.QCoreApplication.setApplicationName("PTBAnime")
-QtCore.QCoreApplication.setApplicationVersion("2.0.4")
+QtCore.QCoreApplication.setApplicationVersion("2.0.5")
 
 # Set important Folder and File Paths
 QML_FOLDER_PATH = Path(__file__).parents[1] / "qml"
@@ -25,8 +25,10 @@ print("Debug: AppData Path:", APPDATA)
 
 # The Backend
 class BackEnd(QObject):
-    def __init__(self, settings):
-        super().__init__(); self.settings: QSettings = settings
+    def __init__(self, settings, cache_manager):
+        super().__init__()
+        self.settings: QSettings = settings
+        self.cache_manager: cache_manager.CacheManager = cache_manager
 
     # Check if it's first time running
     @Property(bool)
@@ -42,6 +44,29 @@ class BackEnd(QObject):
     @Slot(str, str, result=str)
     def get_setting(self, key, default):
         return self.settings.value(key, default)
+    
+    # Fetch anime data from AniList, process, and add to cache
+    @Slot()
+    def update_cache(self):
+        animes = library.scan_anime_folder(self.settings.value("app/anime_folder_path"))
+
+        anime_metadatas = []
+        for anime in animes:
+            # If anime already in cache, don't add it to get processed
+            if self.cache_manager.get_anime_from_path(anime): 
+                print(f"Cache Manager Debug: Anime {Path(anime).name} already in Cache, skipping.")
+                continue
+
+            anime_metadatas.append(library.get_anime_metadata(Path(anime)))
+        
+        # Set Cache
+        for anime_metadata in anime_metadatas:
+            self.cache_manager.set_anime(anime_metadata)
+    
+    # Get homepage grid model
+    @Slot(result=list)
+    def get_anime(self):
+        return library.get_home_page_grid(self.cache_manager.cache)
 
 
 # The Main Application
@@ -53,15 +78,12 @@ class App:
         # Create cache manager
         self.cache_manager = cache_manager.CacheManager(APPDATA)
 
-        # For testing purposes to test first time running
-        # self.settings.setValue("app/first_time", True)
-
         # If there's no setting for app/first_time, it's the first time running
         if not self.settings.contains("app/first_time"):
             self.settings.setValue("app/first_time", True)
 
         # Create the Backend
-        self.backend = BackEnd(self.settings)
+        self.backend = BackEnd(self.settings, self.cache_manager)
 
         # Initialize the main App
         self.app = QGuiApplication(sys.argv)
@@ -85,12 +107,12 @@ class App:
         if self.settings.value("app/first_time", True, type=bool):
             print("Debug: First time running Detected!")
             self.settings.setValue("app/first_time", False)
-        
-        # Test Library Backend
-        # library.scan_anime_folder(self.settings.value("app/anime_folder_path"))  # "file:///run/media/polar/Skibidi Riz/ani-cli/anime"
 
         # Start the app
         self.exit_code = self.app.exec()
+
+        # Save the Cache
+        self.cache_manager.save()
 
         # Exit normally
         sys.exit(self.exit_code)

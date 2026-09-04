@@ -2,6 +2,7 @@ from pathlib import Path
 from urllib.parse import urlparse
 import requests
 import json
+from . import library
 
 
 # Default Values
@@ -154,8 +155,6 @@ class CacheManager:
 
 if __name__ == "__main__":
     # Testing purposes
-    import library
-
     cache_manager = CacheManager("~/.local/share/PolarTea Studios/PTBAnime")
 
     animes = library.scan_anime_folder("/run/media/polar/Skibidi Riz/ani-cli/anime")

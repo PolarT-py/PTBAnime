@@ -6,6 +6,13 @@ import "../styles"
 
 
 Column {
+    id: card_root
+
+    // Properties
+    property int anime_id: -1
+    property string imageSource: "../../assets/images/anime_card_thumbnail.png"
+    property string title: "Insert Anime Name But it's long"
+
     // The Button and Cover for the Anime
     Button {
         width: 200
@@ -31,7 +38,7 @@ Column {
         Image {
             id: coverIMG
 
-            source: "../../assets/images/anime_card_thumbnail.png"
+            source: card_root.imageSource
             fillMode: Image.PreserveAspectCrop
             clip: true
 
@@ -42,7 +49,7 @@ Column {
 
     // The Title of the Anime
     Label {
-        text: "Insert Anime Name But it's long"
+        text: card_root.title
         font.pixelSize: 18
 
         width: parent.width

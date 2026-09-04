@@ -51,6 +51,8 @@ Page {
 
     // Finish Button to bring you to the Home Page
     NormalButton {
+        id: finishSetupButton
+
         text: "Finish Setup"
         fontSize: 20
         borderWidth: 1
@@ -61,6 +63,9 @@ Page {
         height: 50
 
         onClicked: {
+            // Display message telling the user to wait while scanning is happening
+            finishSetupButton.text = "Please wait while we scan through your Anime Folder"
+
             // Save the Settings
             backend.set_setting("app/anime_folder_path", animeFolderChooser.value)
 

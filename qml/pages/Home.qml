@@ -53,9 +53,14 @@ Page {
 
                     // Placeholder cards
                     Repeater {
-                        model: 13
+                        model: backend.get_anime()
                         // model: 0
-                        delegate: Card {}
+
+                        delegate: Card {
+                            anime_id: modelData.id
+                            title: modelData.title.english
+                            imageSource: modelData.image
+                        }
                     }
                 }
             }

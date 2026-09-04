@@ -12,8 +12,8 @@ import json, requests
 # If it cannot fetch any data, it will use the placeholder cover, and folder name for it's name.
 
 
-# Bugs:
-# - Animes that use the Fallback Template because they were not found get reset every time you restart
+# Todo:
+# - Add feature so it checks Animes with fallback data every time to see if it could find a match in case it got renamed
 
 
 # Set Paths
@@ -44,6 +44,11 @@ FALLBACK_TEMPLATE = {
 }
 
 
+# Get list for Home Page Grid from cache
+def get_home_page_grid(cache):
+    return list(cache["animes"].values())
+
+# Get fallback template
 def get_fallback_template(anime_path, existing_ids):
     # Make a copy of the template
     template = deepcopy(FALLBACK_TEMPLATE)
