@@ -20,6 +20,7 @@
 
 > #### Required Python Packages:
 > 1. `PySide6`
+> 2. `requests`
 
 ### Setup
 

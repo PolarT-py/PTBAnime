@@ -40,6 +40,8 @@ Page {
             }
 
             OptionFolderChooser {
+                id: animeFolderChooser
+
                 optionText: "Anime Folder:"
                 placeholderText: "Path to your Anime Folder"
                 dialogTitle: "Select Anime Folder"
@@ -59,6 +61,10 @@ Page {
         height: 50
 
         onClicked: {
+            // Save the Settings
+            backend.set_setting("app/anime_folder_path", animeFolderChooser.value)
+
+            // Go to Home
             pageStack.navigate("pages/Home.qml", 1)
         }
 

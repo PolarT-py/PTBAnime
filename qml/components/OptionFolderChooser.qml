@@ -13,6 +13,8 @@ Row {
     property int fieldWidth: 400
     property string dialogTitle: "Select Folder"
 
+    property alias value: textFieldValue.text
+
     Text {
         text: parent.optionText
         font.pixelSize: 16
@@ -22,7 +24,7 @@ Row {
     }
 
     TextField {
-        id: folderField
+        id: textFieldValue
 
         placeholderText: parent.placeholderText
         placeholderTextColor: Theme.fg3
@@ -47,6 +49,6 @@ Row {
 
         title: parent.dialogTitle
 
-        onAccepted: { folderField.text = selectedFolder }
+        onAccepted: { textFieldValue.text = selectedFolder }
     }
 }

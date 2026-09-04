@@ -10,6 +10,8 @@ Row {
     property string optionText: "Option Text Field"
     property string placeholderText: "Placeholder Text"
     property int fieldWidth: 400
+    
+    property alias value: textFieldValue.text
 
     Text {
         text: parent.optionText
@@ -20,6 +22,8 @@ Row {
     }
 
     TextField {
+        id: textFieldValue
+
         placeholderText: parent.placeholderText
         placeholderTextColor: Theme.fg3
         color: Theme.fg1
