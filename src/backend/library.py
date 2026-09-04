@@ -12,6 +12,10 @@ import json, requests
 # If it cannot fetch any data, it will use the placeholder cover, and folder name for it's name.
 
 
+# Bugs:
+# - Animes that use the Fallback Template because they were not found get reset every time you restart
+
+
 # Set Paths
 BASE_DIR = Path(__file__).parent.parent.parent.resolve()
 FALLBACK_THUMBNAIL = str(BASE_DIR.joinpath(Path("assets/images/anime_card_thumbnail.png")))
@@ -35,17 +39,27 @@ FALLBACK_TEMPLATE = {
     "seasonYear": 2000,
     "genres": [],
     "averageScore": 50,
-    "description": "This Anime was not found on AniList, so now it's using a fallback template. Make sure to the folder name correctly spelled (English, romaji, or native) and fetch again. You can also manually set these values."
+    "description": "This Anime was not found on AniList, so now it's using a fallback template. Make sure to the folder name correctly spelled (English, romaji, or native) and fetch again. You can also manually set these values.",
+    "path": "?"
 }
 
 
-def get_fallback_template(anime_name, existing_ids):
+def get_fallback_template(anime_path, existing_ids):
     # Make a copy of the template
     template = deepcopy(FALLBACK_TEMPLATE)
 
+    # Set anime name
+    if isinstance(anime_path, str):
+        anime_name = Path(anime_path).name
+    else:
+        anime_name = anime_path.name
+
     # Set it's names to the folder name
     title = template["title"]
-    title["english"] = anime_name; title["romaji"] = anime_name; title["native"] = anime_name; 
+    title["english"] = anime_name; title["romaji"] = anime_name; title["native"] = anime_name
+
+    # Set the path
+    template["path"] = str(anime_path)
 
     # Give it a random ID from 2,000,000 to 2,100,000 that's not already taken
     while True:
@@ -60,6 +74,10 @@ def get_fallback_template(anime_name, existing_ids):
 # Scan the entire Anime folder
 # Get all detected Anime paths back
 def scan_anime_folder(provided_path):
+    if not isinstance(provided_path, str):
+        print("The provided path to Anime Folder is invalid:", provided_path)
+        return None
+
     # Parse it from a URL to Path
     anime_folder = Path(urlparse(provided_path).path)
 
@@ -87,10 +105,11 @@ def scan_anime_folder(provided_path):
 
 # Fetch anime metadata by anime name on AniList
 # Return available metadata. If can't find any, return default values
-def get_anime_metadata(anime_name):
-    # Check if it's a path provided
-    if anime_name is Path:
-        anime_name = anime_name.name
+def get_anime_metadata(anime_path):
+    if isinstance(anime_path, str):
+        anime_name = Path(anime_path).name
+    else:
+        anime_name = anime_path.name
     
     # Create query and headers
     query = """
@@ -127,7 +146,7 @@ query ($search: String) {
         # Not sure how, but might add a looser way of searching in the future
         if "errors" in anime_metadata:
             print(f"Library Debug: ! Could not find the Anime you were looking for on AniList. Please make sure the folder name is correct. Hint: You might be sending too many requests too quickly, try again in a minute. Provided name: {anime_name}")
-            return anime_name
+            return str(anime_path)
 
         print(f"Library Debug: Found Anime on AniList: {anime_name}")
 
@@ -135,19 +154,22 @@ query ($search: String) {
         title = anime_metadata["data"]["Media"]["title"]
         if title["english"] is None: title["english"] = title["romaji"]
 
+        # Add the path to where the Anime was found
+        anime_metadata["data"]["Media"]["path"] = str(anime_path)
+
         return anime_metadata["data"]["Media"]
     
     except requests.exceptions.RequestException as e:
         print(f"An error occurred while trying to fetch Anime metadata: {e}")
     
-    return anime_name
+    return str(anime_path)
 
 
 if __name__ == "__main__":
     print("Debugging for Library")
 
     # Test fetch data
-    test = get_anime_metadata("mission yozakura family")
+    test = get_anime_metadata("/run/media/polar/Skibidi Riz/ani-cli/anime/Mission Yozakura Family/")
     if isinstance(test, dict):
         print("Library Debug - Anime Metadata:", json.dumps(test, indent=4))
         # print("Library Debug - Description:", test["description"])

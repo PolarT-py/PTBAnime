@@ -33,7 +33,7 @@ def download_image(url, save_folder, id):
         # If the image already exist, skip it
         if save_path.exists(): return str(save_path)
 
-        # Save the iamge
+        # Save the image
         with save_path.open("wb") as f:
             for chunk in response.iter_content(chunk_size=8192):
                 f.write(chunk)
@@ -79,7 +79,7 @@ class CacheManager:
                 print("Cache Manager Debug - Cache file was empty or corrupted. Using default values")
                 self.cache = CACHE_FILE_TEMPLATE.copy()
 
-    # Get the metadata from cache
+    # Get the metadata from ID
     def get_anime_from_id(self, id):
         if id in self.cache["animes"].keys():
             return self.cache["animes"][id]
@@ -87,15 +87,31 @@ class CacheManager:
         print(f"Cache Manager Debug - Get anime from ID: Could not find ID {id}!")
         return None
     
+    # Get the metadata from Path
+    def get_anime_from_path(self, path):
+        for id in self.cache["animes"].keys():
+            if path == self.cache["animes"][id]["path"]:
+                return id
+        
+        print(f"Cache Manager Debug - Get anime from Path: Could not find Anime with Path {path}!")
+        return None
+
     # Add anime metadata to cache (Get from Library get_anime_metadata)
     def set_anime(self, data):
         # If it's a string, it means the anime was not found on AniList.
         if isinstance(data, str):
-            anime_name = data
+            anime_name = Path(data).name
+
+            # If anime name already in cache, skip it
+            for id in self.cache["animes"].keys():
+                if anime_name == self.cache["animes"][id]["title"]["english"]:
+                    print(f"Cache Manager Debug - ID {id} already exists in cache. Skipping")
+                    return
+            
+            # If not found, set default values
+            data = library.get_fallback_template(data, self.cache["animes"].keys())
 
             print(f"Cache Manager Debug - Setting default template for {anime_name}")
-            
-            data = library.get_fallback_template(data, self.cache["animes"].keys())
         
         # If it's None, then give them nothing
         if data is None:
@@ -146,8 +162,14 @@ if __name__ == "__main__":
 
     anime_metadatas = []
     for anime in animes:
-        anime_metadatas.append(library.get_anime_metadata(Path(anime).name))
+        # If anime already in cache, don't add it to get processed
+        if cache_manager.get_anime_from_path(anime): 
+            print(f"Cache Manager Debug: Anime {Path(anime).name} already in Cache, skipping.")
+            continue
+
+        anime_metadatas.append(library.get_anime_metadata(Path(anime)))
     
+    # Set Cache
     for anime_metadata in anime_metadatas:
         cache_manager.set_anime(anime_metadata)
     

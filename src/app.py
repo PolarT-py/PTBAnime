@@ -13,7 +13,7 @@ from backend import library, cache_manager
 QtCore.QCoreApplication.setOrganizationName("PolarTea Studios")
 QtCore.QCoreApplication.setOrganizationDomain("dev.polartblock.ptbanime")
 QtCore.QCoreApplication.setApplicationName("PTBAnime")
-QtCore.QCoreApplication.setApplicationVersion("2.0.3")
+QtCore.QCoreApplication.setApplicationVersion("2.0.4")
 
 # Set important Folder and File Paths
 QML_FOLDER_PATH = Path(__file__).parents[1] / "qml"
@@ -87,7 +87,7 @@ class App:
             self.settings.setValue("app/first_time", False)
         
         # Test Library Backend
-        library.scan_anime_folder(self.settings.value("app/anime_folder_path"))  # "file:///run/media/polar/Skibidi Riz/ani-cli/anime"
+        # library.scan_anime_folder(self.settings.value("app/anime_folder_path"))  # "file:///run/media/polar/Skibidi Riz/ani-cli/anime"
 
         # Start the app
         self.exit_code = self.app.exec()
