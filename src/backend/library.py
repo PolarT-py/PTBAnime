@@ -12,8 +12,9 @@ import json, requests
 # If it cannot fetch any data, it will use the placeholder cover, and folder name for it's name.
 
 
-# Todo:
-# - Add feature so it checks Animes with fallback data every time to see if it could find a match in case it got renamed
+# Todo (Library + Cache Manager):
+# - Fix it loading slow causing switching to the Home Page to feel slow and laggy
+# - Make the library returned sorted by name
 
 
 # Set Paths
@@ -31,7 +32,7 @@ FALLBACK_TEMPLATE = {
     },
     "coverImage": {
         "extraLarge": FALLBACK_THUMBNAIL,
-        "color": "#ffffff"
+        "color": "#000000"
     },
     "type": "ANIME",
     "status": "Unknown",
@@ -40,13 +41,16 @@ FALLBACK_TEMPLATE = {
     "genres": [],
     "averageScore": 50,
     "description": "This Anime was not found on AniList, so now it's using a fallback template. Make sure to the folder name correctly spelled (English, romaji, or native) and fetch again. You can also manually set these values.",
-    "path": "?"
+    "path": "?",
+    "is_fallback": True,
+    "visible": True  # Decides if it shows up in the Library
 }
 
 
-# Get list for Home Page Grid from cache
+# Get the list of visible animes for Home Page Grid from cache
 def get_home_page_grid(cache):
-    return list(cache["animes"].values())
+    return [anime for anime in cache["animes"].values() if anime.get("visible", True)]
+
 
 # Get fallback template
 def get_fallback_template(anime_path, existing_ids):
@@ -161,6 +165,9 @@ query ($search: String) {
 
         # Add the path to where the Anime was found
         anime_metadata["data"]["Media"]["path"] = str(anime_path)
+
+        # Set it as not a fallback
+        anime_metadata["data"]["Media"]["is_fallback"] = False
 
         return anime_metadata["data"]["Media"]
     

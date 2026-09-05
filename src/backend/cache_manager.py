@@ -99,14 +99,22 @@ class CacheManager:
 
     # Add anime metadata to cache (Get from Library get_anime_metadata)
     def set_anime(self, data):
-        # If it's a string, it means the anime was not found on AniList.
+        # If it's a string path, it means the anime was not found on AniList.
         if isinstance(data, str):
             anime_name = Path(data).name
 
-            # If anime name already in cache, skip it
+            # If anime already in cache, check if it has been moved
             for id in self.cache["animes"].keys():
-                if anime_name == self.cache["animes"][id]["title"]["english"]:
-                    print(f"Cache Manager Debug - ID {id} already exists in cache. Skipping")
+                anime = self.cache["animes"][id]
+
+                if anime.get("is_fallback") and anime_name == anime["title"]["english"]:
+                    if anime["path"] != data:
+                        print(f"Cache Manager Debug: Fallback {anime_name}'s path updating from {anime["path"]} to new path {data}.")
+                        anime["path"] = data
+                    else:
+                        print(f"Cache Manager Debug: ID {id} already exists in cache. Skipping")
+                    
+                    anime["visible"] = True
                     return
             
             # If not found, set default values
@@ -128,9 +136,17 @@ class CacheManager:
             # Set ID and remove from original data
             id = str(data["id"]); data.pop("id")
 
-            # Skip if it already exists in cache
-            if id in self.cache["animes"].keys(): 
-                print(f"Cache Manager Debug - ID {id} already exists in cache. Skipping")
+            # Check for Animes that are already in cache that have been moved to a different path
+            if id in self.cache["animes"].keys():
+                existing_path = self.cache["animes"][id]["path"]
+
+                # If the paths don't match, update the path and mark it as visible
+                if existing_path != data["path"]:
+                    print(f"Cache Manager Debug: ID {id}'s path updating from {existing_path} to new path {data["path"]}")
+                    self.cache["animes"][id]["path"] = data["path"]
+                    self.cache["animes"][id]["visible"] = True
+                else:
+                    print(f"Cache Manager Debug: ID {id} already exists in cache. Skipping")
                 return
 
             # Download the images and replace the Image links with cached local paths unless it's already local
@@ -146,7 +162,27 @@ class CacheManager:
             self.cache["animes"][id] = data
         else:
             print(f"Cache Manager Debug - Unable to set a cache item because of an empty json provided! Json Provided: {data}")
+        
+        # Save it to file
+        self.save()
     
+    # Recheck the fallbacks to see if they can find a match in case their folder name got changed or something
+    def recheck_fallback(self):
+        for id, anime in list(self.cache["animes"].items()):
+            if anime.get("is_fallback"):
+                result = library.get_anime_metadata(anime["path"])
+
+                # If the result is a dict (found match), then replace the old config and replace it with the new one
+                if isinstance(result, dict):
+                    del self.cache["animes"][id]
+                    self.set_anime(result)
+
+    # Check for animes whose paths are gone, then set them to hide in Library
+    def sync_visiblity(self, scanned_paths):
+        scanned_set = set(scanned_paths)
+        for anime in self.cache["animes"].values():
+            anime["visible"] = anime["path"] in scanned_set
+
     # Save the current cache to file
     def save(self):
         with self.CACHE_FILE.open("w") as f:
@@ -156,6 +192,8 @@ class CacheManager:
 if __name__ == "__main__":
     # Testing purposes
     cache_manager = CacheManager("~/.local/share/PolarTea Studios/PTBAnime")
+
+    cache_manager.recheck_fallback()
 
     animes = library.scan_anime_folder("/run/media/polar/Skibidi Riz/ani-cli/anime")
 
@@ -168,6 +206,8 @@ if __name__ == "__main__":
 
         anime_metadatas.append(library.get_anime_metadata(Path(anime)))
     
+    cache_manager.sync_visiblity(animes)
+
     # Set Cache
     for anime_metadata in anime_metadatas:
         cache_manager.set_anime(anime_metadata)

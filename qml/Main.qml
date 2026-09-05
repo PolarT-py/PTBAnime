@@ -97,8 +97,8 @@ Window {
                 // Cool Animation Enter Animation (Push)
                 pushEnter: Transition {
                     NumberAnimation {
-                        property: "x"
-                        from: pageStack.goingForward ? pageStack.width : -pageStack.width
+                        property: "y"
+                        from: pageStack.goingForward ? pageStack.height : -pageStack.height
                         to: 0
                         duration: 500
                         easing.type: Easing.OutExpo
@@ -108,9 +108,9 @@ Window {
                 // Cool Animation Exit Animation (Push)
                 pushExit: Transition {
                     NumberAnimation {
-                        property: "x"
+                        property: "y"
                         from: 0
-                        to: pageStack.goingForward ? -pageStack.width : pageStack.width
+                        to: pageStack.goingForward ? -pageStack.height : pageStack.height
                         duration: 500
                         easing.type: Easing.OutExpo
                     }

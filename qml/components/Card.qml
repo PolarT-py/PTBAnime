@@ -12,6 +12,7 @@ Column {
     property int anime_id: -1
     property string imageSource: "../../assets/images/anime_card_thumbnail.png"
     property string title: "Insert Anime Name But it's long"
+    property string shadowColor: "black"
 
     // The Button and Cover for the Anime
     Button {
@@ -33,6 +34,7 @@ Column {
             offset.y: 2
             blur: 10
             spread: 0.1
+            color: shadowColor
         }
 
         Image {
@@ -45,6 +47,16 @@ Column {
             width: parent.width
             height: parent.height
         }
+
+        // MultiEffect {  // Test Blur for image
+        //     anchors.fill: coverIMG
+        //     source: coverIMG
+
+        //     blurEnabled: true
+        //     blur: 1.0
+        //     blurMax: 42
+        //     autoPaddingEnabled: false
+        // }
     }
 
     // The Title of the Anime

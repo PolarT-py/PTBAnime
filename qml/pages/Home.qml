@@ -5,6 +5,9 @@ import "../components"
 import "../styles"
 
 
+// Want to add save position feature where it doesn't reset you back to the start when you come back home from overview
+
+
 Page {
     id: homePage
 
@@ -25,7 +28,16 @@ Page {
             width: homePageScroll.width
             spacing: 10
 
-            // Wrapper for the Grid
+            // Might add Recents list here
+
+            // Library Title
+            H2 {
+                text: "Library"
+                topPadding: 30
+                leftPadding: 15
+            }
+
+            // Wrapper for the Main Grid (All Anime)
             Item {
                 id: gridContainer
 
@@ -51,15 +63,15 @@ Page {
 
                     padding: 10
 
-                    // Placeholder cards
+                    // Cards
                     Repeater {
-                        model: backend.get_anime()
-                        // model: 0
+                        model: backend.libraryAnime
 
                         delegate: Card {
                             anime_id: modelData.id
-                            title: modelData.title.english
+                            title: modelData.title.native  // Add ability to choose English/Romaji/Native
                             imageSource: modelData.image
+                            shadowColor: modelData.coverImage.color  // Future add ability to toggle on/off (Default Black)
                         }
                     }
                 }

@@ -64,6 +64,7 @@ Page {
 
         onClicked: {
             // Display message telling the user to wait while scanning is happening
+            // Bug: It doesn't update the text on the button until it's finished loading and moving to the home page
             finishSetupButton.text = "Please wait while we scan through your Anime Folder"
 
             // Save the Settings
