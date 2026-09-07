@@ -2,7 +2,7 @@ from pathlib import Path
 from urllib.parse import urlparse
 from random import randint
 from copy import deepcopy
-import json, requests
+import json, requests, time
 
 
 # The library backend will search your provided Anime folder.
@@ -12,14 +12,19 @@ import json, requests
 # If it cannot fetch any data, it will use the placeholder cover, and folder name for it's name.
 
 
-# Todo (Library + Cache Manager):
-# - Fix it loading slow causing switching to the Home Page to feel slow and laggy
-# - Make the library returned sorted by name
+# Add in future:
+# - Switch from AniList to Jikan for a higher rate limit of 60r/m
+# - Make it so animes that are found but don't have fetched metadata use a blank image and sit there until they receive their cover and stuff
 
 
 # Set Paths
 BASE_DIR = Path(__file__).parent.parent.parent.resolve()
 FALLBACK_THUMBNAIL = str(BASE_DIR.joinpath(Path("assets/images/anime_card_thumbnail.png")))
+
+
+# Requests timing stuff
+last_request_time = 0.0
+MIN_REQUEST_INTERVAL = 60 / 28  # Limit to 28 requests per minute so it doesn't hit AniList's current 30 requests rate limit
 
 
 # Fallback Template. Do not copy directly!
@@ -47,9 +52,38 @@ FALLBACK_TEMPLATE = {
 }
 
 
-# Get the list of visible animes for Home Page Grid from cache
-def get_home_page_grid(cache):
-    return [anime for anime in cache["animes"].values() if anime.get("visible", True)]
+# Get the list of visible animes sorted by name for Home Page Grid from cache
+# Filtered by search too
+def get_home_page_grid(cache, search_filter):
+    l = []
+
+    for anime_id, anime in cache["animes"].items():
+        if anime.get("visible", True):
+            # Filter out ones that don't fit the search
+            qualified = False
+            search_filter = search_filter.lower()
+
+            if search_filter in anime["title"]["english"].lower() or search_filter in anime["title"]["romaji"].lower() or search_filter in anime["title"]["native"].lower():
+                qualified = True
+            
+            if search_filter in anime["description"].lower():
+                qualified = True
+            
+            for word in search_filter:
+                if word in anime["genres"]:
+                    qualified = True; break
+            
+            if not qualified: continue
+
+            # Fix null colors by setting them to black
+            if anime["coverImage"]["color"] is None:
+                anime["coverImage"]["color"] = "#000000"
+            
+            # Add an ID to it just for the library
+            anime["id"] = int(anime_id)
+            l.append(anime)
+
+    return l
 
 
 # Get fallback template
@@ -115,6 +149,13 @@ def scan_anime_folder(provided_path):
 # Fetch anime metadata by anime name on AniList
 # Return available metadata. If can't find any, return default values
 def get_anime_metadata(anime_path):
+    global last_request_time
+
+    # Make sure it throttles for the rate limit
+    elapsed = time.time() - last_request_time
+    if elapsed < MIN_REQUEST_INTERVAL:
+        time.sleep(MIN_REQUEST_INTERVAL - elapsed)
+
     if isinstance(anime_path, str):
         anime_name = Path(anime_path).name
     else:
@@ -148,6 +189,9 @@ query ($search: String) {
         # Attempt to send a request
         response = requests.post("https://graphql.anilist.co", json={"query": query, "variables": {"search": anime_name}})
 
+        # Store last request time
+        last_request_time = time.time()
+
         # Extract metadata
         anime_metadata = response.json()
 
@@ -155,6 +199,7 @@ query ($search: String) {
         # Not sure how, but might add a looser way of searching in the future
         if "errors" in anime_metadata:
             print(f"Library Debug: ! Could not find the Anime you were looking for on AniList. Please make sure the folder name is correct. Hint: You might be sending too many requests too quickly, try again in a minute. Provided name: {anime_name}")
+            print(f"Library Debug: ! ^ The error: {anime_metadata}")
             return str(anime_path)
 
         print(f"Library Debug: Found Anime on AniList: {anime_name}")

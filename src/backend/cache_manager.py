@@ -1,7 +1,7 @@
+from PySide6.QtCore import QObject, QThread, Signal, Slot
 from pathlib import Path
 from urllib.parse import urlparse
-import requests
-import json
+import requests, json
 from . import library
 
 
@@ -187,6 +187,41 @@ class CacheManager:
     def save(self):
         with self.CACHE_FILE.open("w") as f:
             json.dump(self.cache, f, indent=4)
+
+
+# Thread worker so the Library loads live
+class CacheWorker(QObject):
+    animeAdded = Signal()
+    finished = Signal()
+
+    def __init__(self, cache_manager: CacheManager, anime_folder_path: str):
+        super().__init__()
+        self.cache_manager = cache_manager
+        self.anime_folder_path = anime_folder_path
+    
+    @Slot()
+    def run(self):
+        # Check if the Fallback Animes on AniList in case they got a new name
+        # I think this should be manual from a button press instead of auto scanning, or on a different thread
+        # self.cache_manager.recheck_fallback()
+
+        # Find all animes in the anime folder and sync their visibility
+        animes = library.scan_anime_folder(self.anime_folder_path)
+        self.cache_manager.sync_visiblity(animes)
+
+        # Check all animes that are not already cached and get metadata
+        for anime in animes:
+            if self.cache_manager.get_anime_from_path(anime):
+                continue
+            
+            metadata = library.get_anime_metadata(Path(anime))
+            self.cache_manager.set_anime(metadata)
+
+            self.cache_manager.save()
+
+            self.animeAdded.emit()
+        
+        self.finished.emit()
 
 
 if __name__ == "__main__":

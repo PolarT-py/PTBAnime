@@ -3,7 +3,14 @@ pragma Singleton
 import QtQuick
 
 
-QtObject {
+Item {
+    FontLoader {
+        id: materialSymbolsFont
+        source: "qrc:/fonts/MaterialSymbolsRounded.ttf"
+    }
+
+    readonly property string materialSymbols: materialSymbolsFont.name
+
     property bool dark: true
 
     readonly property color bg1: dark ? "#121212" : "#ffffff"

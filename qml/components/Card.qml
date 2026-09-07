@@ -59,6 +59,8 @@ Column {
         // }
     }
 
+    Spacer {spacing: 10}
+
     // The Title of the Anime
     Label {
         text: card_root.title

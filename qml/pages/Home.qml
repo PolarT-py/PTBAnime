@@ -22,88 +22,116 @@ Page {
         contentHeight: pageColumn.height
 
         // Content Lives here
-        Column {
-            id: pageColumn
+        MouseArea {
+            id: backgroundCatcher
 
-            width: homePageScroll.width
-            spacing: 10
+            anchors.fill: parent
+            focus: true
 
-            // Might add Recents list here
-
-            // Library Title
-            H2 {
-                text: "Library"
-                topPadding: 30
-                leftPadding: 15
+            onClicked: {
+                backgroundCatcher.forceActiveFocus() 
             }
 
-            // Wrapper for the Main Grid (All Anime)
-            Item {
-                id: gridContainer
+            Column {
+                id: pageColumn
 
-                width: Math.max(homePageScroll.width, homePageGrid.width)
-                height: homePageGrid.height
+                width: homePageScroll.width
+                spacing: 10
 
-                implicitWidth: width
-                implicitHeight: height
+                // Might add Recents list here
 
-                // Grid for the Cards
-                Grid {
-                    id: homePageGrid
+                // Library Title
+                H2 {
+                    text: "Library"
+                    topPadding: 30
+                    leftPadding: 15
+                }
 
-                    property int minimumSpacing: 20 // The minimum column spacing inbetween the Cards
-                    property int cardWidth: 200  // This is hard coded for Card's width
+                // Wrapper for the Main Grid (All Anime)
+                Item {
+                    id: gridContainer
 
-                    anchors.horizontalCenter: parent.horizontalCenter
+                    width: Math.max(homePageScroll.width, homePageGrid.width)
+                    height: homePageGrid.height
 
-                    columns: Math.max(1, Math.floor((homePageScroll.width - padding * 2 + columnSpacing) / (cardWidth + columnSpacing)))
+                    implicitWidth: width
+                    implicitHeight: height
 
-                    columnSpacing: minimumSpacing
-                    rowSpacing: 40
+                    // Grid for the Cards
+                    Grid {
+                        id: homePageGrid
 
-                    padding: 10
+                        property int minimumSpacing: 20 // The minimum column spacing inbetween the Cards
+                        property int cardWidth: 200  // This is hard coded for Card's width
 
-                    // Cards
-                    Repeater {
-                        model: backend.libraryAnime
+                        anchors.horizontalCenter: parent.horizontalCenter
 
-                        delegate: Card {
-                            anime_id: modelData.id
-                            title: modelData.title.native  // Add ability to choose English/Romaji/Native
-                            imageSource: modelData.image
-                            shadowColor: modelData.coverImage.color  // Future add ability to toggle on/off (Default Black)
+                        columns: Math.max(1, Math.floor((homePageScroll.width - padding * 2 + columnSpacing) / (cardWidth + columnSpacing)))
+
+                        columnSpacing: minimumSpacing
+                        rowSpacing: 40
+
+                        padding: 10
+
+                        // Card animation when loading in
+                        move: Transition {
+                            NumberAnimation {
+                                properties: "x, y"
+                                duration: 330
+                                easing.type: Easing.OutCubic
+                            }
+                        }
+
+                        // Cards
+                        Repeater {
+                            model: backend.libraryAnime
+
+                            delegate: Card {
+                                anime_id: modelData.id
+                                title: modelData.title.english  // Add ability to choose English/Romaji/Native
+                                imageSource: modelData.image
+                                shadowColor: modelData.coverImage.color  // Future add ability to toggle on/off (Default Black)
+                            }
                         }
                     }
                 }
-            }
 
-            // Display message when there are no cards
-            Column {
-                id: noCardsMessage
-
-                anchors.horizontalCenter: parent.horizontalCenter
-                visible: homePageGrid.children.length <= 1  // The Repeater counts as a child so need to account for it
-
-                H2 {
-                    text: "No Anime Available :("
+                // Display message when there are no cards
+                Column {
+                    id: noCardsMessage
 
                     anchors.horizontalCenter: parent.horizontalCenter
-                }
+                    visible: homePageGrid.children.length <= 1  // The Repeater counts as a child so need to account for it
 
-                H3 {
-                    text: "Make sure to Check your Paths and Folder to make sure it's formatted properly!"
+                    H2 {
+                        text: "No Anime Available :("
 
-                    anchors.horizontalCenter: parent.horizontalCenter
-                }
+                        anchors.horizontalCenter: parent.horizontalCenter
+                    }
 
-                Spacer { spacing: 50 }
+                    Spacer { spacing: 20 }
 
-                Image {
-                    source: "../../assets/images/anime_card_thumbnail.png"
-                    anchors.horizontalCenter: parent.horizontalCenter
+                    H3 {
+                        text: "Either your Search Query didn't match any animes..."
 
-                    width: 100
-                    height: 100
+                        anchors.horizontalCenter: parent.horizontalCenter
+                    }
+
+                    H3 {
+                        text: "or Make sure to Check your Paths and Folder to make sure it's formatted properly!"
+
+                        anchors.horizontalCenter: parent.horizontalCenter
+                    }
+
+                    Spacer { spacing: 50 }
+
+                    Image {
+                        source: "../../assets/images/anime_card_thumbnail.png"
+                        anchors.horizontalCenter: parent.horizontalCenter
+
+                        width: 100
+                        height: 100
+                    }
                 }
             }
         }

@@ -4,7 +4,6 @@ import QtQuick.Controls
 import QtQuick.Layouts
 
 import "components"
-import "pages"
 import "styles"
 
 
@@ -38,10 +37,19 @@ Window {
             spacing: 0
 
             // Top Bar (Disable for now since it's literally useless)
-            // Topbar {
-            //     Layout.fillWidth: true
-            //     Layout.preferredHeight: 50
-            // }
+            Topbar {
+                Layout.fillWidth: true
+                Layout.preferredHeight: 50
+
+                // Search Bar
+                // Fix the thing where when you actively type in the search, it lags
+                LibrarySearchBar {
+                    id: librarySearchBar
+
+                    // Make it so it only shows when you're on the home page
+                    isVisible: pageStack.currentPage === 1
+                }
+            }
 
             // Page stack for storing our pages
             StackView {

@@ -2,18 +2,20 @@ import sys
 from pathlib import Path
 
 import PySide6.QtCore as QtCore
-from PySide6.QtCore import QObject, Property, Slot, QSettings, QStandardPaths, Signal
+from PySide6.QtCore import QObject, Property, Slot, QSettings, QStandardPaths, Signal, QThread
 from PySide6.QtGui import QGuiApplication
 from PySide6.QtQml import QQmlApplicationEngine
 
 from backend import library, cache_manager
+
+import resources_rc
 
 
 # Set Organization Name and Domain
 QtCore.QCoreApplication.setOrganizationName("PolarTea Studios")
 QtCore.QCoreApplication.setOrganizationDomain("dev.polartblock.ptbanime")
 QtCore.QCoreApplication.setApplicationName("PTBAnime")
-QtCore.QCoreApplication.setApplicationVersion("2.0.6")
+QtCore.QCoreApplication.setApplicationVersion("2.0.7")
 
 # Set important Folder and File Paths
 QML_FOLDER_PATH = Path(__file__).parents[1] / "qml"
@@ -32,6 +34,8 @@ class BackEnd(QObject):
         super().__init__()
         self.settings: QSettings = settings
         self.cache_manager: cache_manager.CacheManager = cache_manager
+        self._thread = None; self._worker = None
+        self.search_filter = ""
 
     # Check if it's first time running
     @Property(bool)
@@ -48,39 +52,42 @@ class BackEnd(QObject):
     def get_setting(self, key, default):
         return self.settings.value(key, default)
     
+    # Set a search filter
+    @Slot(str)
+    def set_search_filter(self, new):
+        self.search_filter = new
+        self.animeLibraryChanged.emit()
+
     # Fetch anime data from AniList, process, and add to cache
     @Slot()
     def update_cache(self):
-        self.cache_manager.recheck_fallback()
+        # Don't stack scans because it might do weird things
+        if getattr(self, "_thread", None) is not None and self._thread.isRunning(): return
 
-        animes = library.scan_anime_folder(self.settings.value("app/anime_folder_path"))
+        # Setup Thread
+        self._thread = QThread()
+        self._worker = cache_manager.CacheWorker(self.cache_manager, self.settings.value("app/anime_folder_path"))
+        self._worker.moveToThread(self._thread)
 
-        anime_metadatas = []
-        for anime in animes:
-            # If anime already in cache, don't add it to get processed
-            if self.cache_manager.get_anime_from_path(anime): 
-                print(f"Cache Manager Debug: Anime {Path(anime).name} already in Cache, skipping.")
-                continue
+        # Connect the signals
+        self._thread.started.connect(self._worker.run)
+        self._worker.animeAdded.connect(self.animeLibraryChanged)
+        self._worker.finished.connect(self._thread.quit)
+        self._worker.finished.connect(self._worker.deleteLater)
+        self._thread.finished.connect(self._on_cache_thread_finished)
+        self._thread.finished.connect(self._thread.deleteLater)
 
-            anime_metadatas.append(library.get_anime_metadata(Path(anime)))
-        
-        # Sync visibility of animes in library
-        self.cache_manager.sync_visiblity(animes)
-        
-        # Set Cache
-        for anime_metadata in anime_metadatas:
-            self.cache_manager.set_anime(anime_metadata)
-        
-        # Send signal to update library
-        self.animeLibraryChanged.emit()
-
-        # Save cache to file
-        self.cache_manager.save()
+        # Starta la magic
+        self._thread.start()
+    
+    # Clean up worker thread after they finish working
+    def _on_cache_thread_finished(self):
+        self._thread = None; self._worker = None
     
     # Get homepage grid model
     @Slot(result=list)
     def get_anime(self):
-        return library.get_home_page_grid(self.cache_manager.cache)
+        return library.get_home_page_grid(self.cache_manager.cache, self.search_filter)
     
     # Set properties for QML
     libraryAnime = Property(list, get_anime, notify=animeLibraryChanged)
